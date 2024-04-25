@@ -89,25 +89,13 @@ npix=hp.nside2npix(nside)
 l, b=hp.pixelfunc.pix2ang(nside, np.arange(npix), lonlat=True, nest=True)
 l=np.where(l<0,l+360,l)
 
-# Filter and compute flux
-# mask=(np.abs(b)<=8.0) 
-mask=(b<=30.0) | (b>=60.0) | (l<=240.0) | (l>=270.0)
+# Mask the disk since dust map is only up to 1.25 kpc
+mask=(np.abs(b)<=8.0) 
 
+# Illustrate for the Geant4 maps
 gmap_Geant4[:,:,mask]=np.nan
-gmap_QGSJET[:,:,mask]=np.nan
-
 gmap_mean_Geant4=np.nanmean(gmap_Geant4,axis=0)
-gmap_mean_QGSJET=np.nanmean(gmap_QGSJET,axis=0)
 gmap_std_Geant4=np.nanstd(gmap_Geant4,axis=0)
-gmap_std_QGSJET=np.nanstd(gmap_QGSJET,axis=0)
-
-phi_Geant4=np.nanmean(gmap_Geant4,axis=2)
-phi_QGSJET=np.nanmean(gmap_QGSJET,axis=2)
-
-phi_mean_Geant4=np.mean(phi_Geant4,axis=0)
-phi_mean_QGSJET=np.mean(phi_QGSJET,axis=0)
-phi_std_Geant4=np.std(phi_Geant4,axis=0)
-phi_std_QGSJET=np.std(phi_QGSJET,axis=0)
 
 iEgplot=20 # Plot maps with Eg = 10 GeV
 
@@ -115,9 +103,9 @@ projview(
     np.log10(gmap_mean_Geant4[iEgplot,:]), 
     title=r'Mean gamma-ray map at $E_\gamma=%.2f$ GeV' % (Eg[iEgplot]),
     coord=["G"], cmap='magma',
-    # min=19, max=23,
+    min=-9.5, max=-7.5,
     nest=True, 
-    unit=r'$log_{10}N_{\rm H}\, [{\rm cm}^{-2}]$',
+    unit=r'$log_{10}\phi_{\rm gamma}(E_\gamma)\, [{\rm GeV}^{-1}\, {\rm cm}^{-2}\, {\rm s}^{-2}\, {\rm sr}^{-1}]$',
     graticule=True, graticule_labels=True, 
     # xlabel=r'longitude (deg)',
     # ylabel=r'latitude (deg)',
@@ -130,9 +118,9 @@ projview(
     gmap_std_Geant4[iEgplot,:]/gmap_mean_Geant4[iEgplot,:], 
     title=r'Standard deviation to mean gamma-ray map at $E_\gamma=%.2f$ GeV' % (Eg[iEgplot]),
     coord=["G"], cmap='magma',
-    # min=19, max=23,
+    min=0.005, max=0.2,
     nest=True, 
-    unit=r'$log_{10}N_{\rm H}\, [{\rm cm}^{-2}]$',
+    unit=r'$\sigma(\phi_\gamma)/\phi_\gamma$',
     graticule=True, graticule_labels=True, 
     # xlabel=r'longitude (deg)',
     # ylabel=r'latitude (deg)',
@@ -140,6 +128,54 @@ projview(
 )
 plt.savefig('fg_gamma_los_std_Geant4.png', dpi=150)
 plt.close()
+
+# Illutrate uncertainty of spectra in a certain region
+mask=(b<=30.0) | (b>=60.0) | (l<=240.0) | (l>=270.0)
+gmap_Geant4[:,:,mask]=np.nan
+gmap_QGSJET[:,:,mask]=np.nan
+
+gmap_mean_Geant4=np.nanmean(gmap_Geant4,axis=0)
+gmap_mean_QGSJET=np.nanmean(gmap_QGSJET,axis=0)
+gmap_std_Geant4=np.nanstd(gmap_Geant4,axis=0)
+gmap_std_QGSJET=np.nanstd(gmap_QGSJET,axis=0)
+
+projview(
+    np.log10(gmap_mean_Geant4[iEgplot,:]), 
+    title=r'Mean gamma-ray map at $E_\gamma=%.2f$ GeV' % (Eg[iEgplot]),
+    coord=["G"], cmap='magma',
+    min=-9.5, max=-7.5,
+    nest=True, 
+    unit=r'$log_{10}\phi_{\rm gamma}(E_\gamma)\, [{\rm GeV}^{-1}\, {\rm cm}^{-2}\, {\rm s}^{-2}\, {\rm sr}^{-1}]$',
+    graticule=True, graticule_labels=True, 
+    # xlabel=r'longitude (deg)',
+    # ylabel=r'latitude (deg)',
+    projection_type="mollweide"
+)
+plt.savefig('fg_gamma_los_mean_Geant4_zoom.png', dpi=150)
+plt.close()
+
+projview(
+    gmap_std_Geant4[iEgplot,:]/gmap_mean_Geant4[iEgplot,:], 
+    title=r'Standard deviation to mean gamma-ray map at $E_\gamma=%.2f$ GeV' % (Eg[iEgplot]),
+    coord=["G"], cmap='magma',
+    min=0.005, max=0.2,
+    nest=True, 
+    unit=r'$\sigma(\phi_\gamma)/\phi_\gamma$',
+    graticule=True, graticule_labels=True, 
+    # xlabel=r'longitude (deg)',
+    # ylabel=r'latitude (deg)',
+    projection_type="mollweide"
+)
+plt.savefig('fg_gamma_los_std_Geant4_zoom.png', dpi=150)
+plt.close()
+
+phi_Geant4=np.nanmean(gmap_Geant4,axis=2)
+phi_QGSJET=np.nanmean(gmap_QGSJET,axis=2)
+
+phi_mean_Geant4=np.mean(phi_Geant4,axis=0)
+phi_mean_QGSJET=np.mean(phi_QGSJET,axis=0)
+phi_std_Geant4=np.std(phi_Geant4,axis=0)
+phi_std_QGSJET=np.std(phi_QGSJET,axis=0)
 
 fig=plt.figure(figsize=(10, 8))
 ax=plt.subplot(111)
@@ -162,67 +198,3 @@ ax.legend(loc='lower right', prop={"size":fs})
 ax.grid(linestyle='--')
 
 plt.savefig('fg_phi_gamma.png')
-
-# rh=np.logspace(np.log10(68.61873),np.log10(1248.1001),517)
-# print(rh[1:-1].shape)
-# drh=rh[1:]-rh[0:-1]
-# rh=rh[1:]
-
-# rh1=250.0
-# rh2=500.0
-# rh3=750.0
-
-# mask1=(rh<=250.0)
-# mask2=(rh<=500.0)
-# mask3=(rh<=750.0)
-
-# mean=np.load('mean_cube.npy')*2.8
-
-# map1=np.sum(mean[mask1]*drh[mask1,np.newaxis],axis=0)
-# map2=np.sum(mean[mask2]*drh[mask2,np.newaxis],axis=0)
-# map3=np.sum(mean[mask3]*drh[mask3,np.newaxis],axis=0)
-
-# projview(
-#     map1, 
-#     title=r'Dust extinction $r_{\odot}<%d$ pc' % rh[mask1][-1],
-#     coord=["G"], cmap='magma',
-#     min=0, max=4,
-#     nest=True, 
-#     unit=r'$A(V)$',
-#     graticule=True, graticule_labels=True, 
-#     # xlabel=r'longitude (deg)',
-#     # ylabel=r'latitude (deg)',
-#     projection_type="mollweide"
-# )
-# plt.savefig('fg_los_500.png', dpi=150)
-# plt.close()
-
-# projview(
-#     map2, 
-#     title=r'Dust extinction $r_{\odot}<%d$ pc' % rh[mask2][-1],
-#     coord=["G"], cmap='magma',
-#     min=0, max=4,
-#     nest=True, 
-#     unit=r'$A(V)$',
-#     graticule=True, graticule_labels=True, 
-#     # xlabel=r'longitude (deg)',
-#     # ylabel=r'latitude (deg)',
-#     projection_type="mollweide"
-# )
-# plt.savefig('fg_los_500.png', dpi=150)
-# plt.close()
-
-# projview(
-#     map3, 
-#     title=r'Dust extinction $r_{\odot}<%d$ pc' % rh[mask3][-1],
-#     coord=["G"], cmap='magma',
-#     min=0, max=4,
-#     nest=True, 
-#     unit=r'$A(V)$',
-#     graticule=True, graticule_labels=True, 
-#     # xlabel=r'longitude (deg)',
-#     # ylabel=r'latitude (deg)',
-#     projection_type="mollweide"
-# )
-# plt.savefig('fg_los_750.png', dpi=150)
-# plt.close()
