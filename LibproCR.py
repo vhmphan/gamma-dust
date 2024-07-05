@@ -83,9 +83,9 @@ def func_QSNR(alpha, xiSNR, E):
 # Compute the differential number density of protons
 def func_fE(pars_prop, zeta_n, q_n, E, r, z):
 
-    R=pars_prop[0]
-    L=pars_prop[1]
-    alpha=pars_prop[2]
+    R=pars_prop[0] # pc
+    L=pars_prop[1] # pc
+    alpha=pars_prop[2] 
     xiSNR=pars_prop[3]
     u0=pars_prop[4]*365.0*86400.0/3.086e18 # pc/yr -> Advection speed
 

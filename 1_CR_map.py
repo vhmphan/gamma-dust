@@ -20,7 +20,7 @@ L=4000.0  # pc -> Height of halo
 
 # Parameters for injection spectrum
 alpha=4.23 # -> Injection spectral index
-xiSNR=0.65 # -> Fracion of SNR kinetic energy into CRs
+xiSNR=0.065 # -> Fracion of SNR kinetic energy into CRs
 
 # Transport parameter
 u0=7.0 # km/s -> Advection speed
