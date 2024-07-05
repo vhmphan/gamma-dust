@@ -1,4 +1,4 @@
-# Rough estimate for the diffuse gamma-ray emission
+## Rough estimate for the diffuse gamma-ray emission
 
 **Step 1** Clone the repository and download the dust maps from [Edenhofer et al. A&A 2023](https://zenodo.org/records/10658339)
 ```sh
