@@ -4,6 +4,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 mpl.rc("text",usetex=True)
 from mpl_toolkits.axes_grid1 import make_axes_locatable, ImageGrid
+import healpy as hp
 
 mp=938.272e6 # eV -> Proton mass
 
@@ -29,10 +30,10 @@ def reconstruct_function(r, q_n, zeta_n, R):
     return expansion
 
 #############################################################################
-# Function for transport
+# Functions for transport
 #############################################################################
 
-# Surface density of SNRs
+# Surface density of SNRs from Yusifov et al. 2004
 def func_gSNR_YUK04(r):
 # r (pc)
 
@@ -193,6 +194,7 @@ def plot_jE_p_LOC(pars_prop, zeta_n, q_n):
     plt.savefig("fg_jE_p_LOC.png")
     plt.close()
 
+# Plot the spatial cosmic-ray distribution
 def plot_jE_rz(fE, r, z):
 
     fs=22
@@ -219,3 +221,61 @@ def plot_jE_rz(fE, r, z):
     plt.subplots_adjust(left=0.12, right=0.9, bottom=0.09, top=0.97)
     plt.savefig("fg_fE.png", dpi=600)
     plt.close()
+
+# Plot the local gamma-ray emissivity
+def plot_emissivity_LOC(qg, Eg, r, z):
+
+    fs=22
+
+    fig=plt.figure(figsize=(10, 8))
+    ax=plt.subplot(111)
+
+    ax.plot(Eg,qg[:,r==8000.0,z==0.0]/(4.0*np.pi),'k-',linewidth=3,label=r'${\rm Local\, Emissivity}$')
+
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.set_xlabel(r'$E \,{\rm (GeV)}$',fontsize=fs)
+    ax.set_ylabel(r'$\varepsilon(E)\, {\rm (GeV^{-1}\, s^{-1}\, sr^{-1})}$',fontsize=fs)
+    for label_axd in (ax.get_xticklabels() + ax.get_yticklabels()):
+        label_axd.set_fontsize(fs)
+    # ax.set_xlim(1.0,100.0)
+    # ax.set_ylim(1.0e-37,1.0e-36)
+    ax.legend(loc='lower left', prop={"size":fs})
+    ax.grid(linestyle='--')
+
+    plt.savefig("fg_emissivity.png")
+    plt.close()
+
+#############################################################################
+# Functions for line of sight integration
+#############################################################################
+def get_healpix_interp(qg, Eg, rg, zg, rs, NSIDE):
+
+    # Grid on which emissivity is calculated
+    points=(rg, zg)
+
+    # Grid on which emissivity is interpolated
+    Rsol=8178.0 # pc
+    N_rs=len(rs)
+    N_pix=12*NSIDE**2
+    N_E=len(Eg)
+
+    # Interpolate the emissivity on the healpix-r grid
+    qg_healpix=np.zeros((N_E,N_rs,N_pix))
+    for ipix in range(N_pix):
+        thetas, phis=hp.pix2ang(NSIDE, ipix, nest=True, lonlat=False) ## returns theta, phi in rad
+        ls=np.repeat(phis,              N_rs)
+        bs=np.repeat(np.pi/2. - thetas, N_rs)
+
+        # Compute (x, y, z)
+        # Convention: Sun is at (x,y,z) = (Rsol,0,0) and ell=0 is pointing opposite to the x-direction
+        xs=-rs*np.cos(ls)*np.cos(bs)+Rsol
+        ys=-rs*np.sin(ls)*np.cos(bs)        
+        zs=rs*np.sin(bs)
+
+        for j in range(N_E):
+            # Create collection of points where the emissivity is interpolated
+            points_intr=np.vstack((np.sqrt(xs**2+ys**2),np.abs(zs))).T
+            qg_healpix[j,:,ipix]=sp.interpolate.interpn(points, qg[j,:,:], points_intr, bounds_error=False, fill_value=0.0)
+
+    return qg_healpix

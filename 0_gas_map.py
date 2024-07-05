@@ -13,15 +13,10 @@ print(hdul.info())
 
 # Access data and header of the primary HDU
 r=(hdul[2].data)['radial pixel edges'].astype(np.float64) # Edges of radial bins
-
-print(r)
-
 dr=np.diff(r)*3.086e21 # cm -> Bin width for the integration along the line of sight
 samples_HI=(hdul[3].data).T # cm^-3
 samples_H2=(hdul[4].data).T # cm^-3
 hdul.close()
-
-print(samples_H2.shape)
 
 # Plot the mean column density map
 NHImap=np.sum(samples_HI*dr[np.newaxis,:,np.newaxis],axis=1)
