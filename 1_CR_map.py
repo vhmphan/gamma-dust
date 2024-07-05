@@ -79,21 +79,13 @@ ngas=np.mean(2.0*samples_H2+samples_HI,axis=0) # cm^-3
 qg_Geant4_healpixr=pCR.get_healpix_interp(qg_Geant4,Eg,rg,zg,rs,NSIDE) # GeV^-1 s^-1
 gamma_map=np.sum(ngas[np.newaxis,:,:]*qg_Geant4_healpixr*drs[np.newaxis,:,np.newaxis],axis=1) # GeV^-1 cm^-2 s^-1
 
-# # Get pixel coordinates to mask part of the map since these maps are valid only at high lattitude
-# print(NSIDE)
-# l, b=hp.pixelfunc.pix2ang(NSIDE, np.arange(N_pix), lonlat=True, nest=True)
-# l=np.where(l<0,l+360,l)
-
-# # Mask the disk since dust map is only up to 1.25 kpc
-# mask=(np.abs(b)<=8.0) 
-
 projview(
     np.log10(gamma_map[0,:]), 
     title=r'Gamma-ray intensity $E_\gamma=%.1f$ GeV' % Eg[0],
     coord=["G"], cmap='magma',
-    min=-8.5, max=-4.5,
+    # min=-8.5, max=-4.5,
     nest=True, 
-    unit=r'$log_{10}\phi_{\rm gamma}(E_\gamma)\, [{\rm GeV}^{-1}\, {\rm cm}^{-2}\, {\rm s}^{-2}]$',
+    unit=r'$\log_{10}\phi_{\rm gamma}(E_\gamma)\, [{\rm GeV}^{-1}\, {\rm cm}^{-2}\, {\rm s}^{-2}]$',
     graticule=True, graticule_labels=True, 
     # xlabel=r'longitude (deg)',
     # ylabel=r'latitude (deg)',
@@ -101,6 +93,36 @@ projview(
 )
 plt.savefig('fg_gamma-map.png', dpi=150)
 plt.close()
+
+
+# Get pixel coordinates to mask part of the map since these maps are valid only at high lattitude
+l, b=hp.pixelfunc.pix2ang(NSIDE, np.arange(N_pix), lonlat=True, nest=True)
+l=np.where(l<0,l+360,l)
+
+# Mask the disk since dust map is only up to 1.25 kpc
+mask=(b<=30.0) | (b>=60.0) | (l<=240.0) | (l>=270.0)
+gamma_map[:,mask]=np.nan
+phi=np.nanmean(gamma_map,axis=1)
+
+fs=22
+
+fig=plt.figure(figsize=(10, 8))
+ax=plt.subplot(111)
+
+ax.plot(Eg,Eg**2.8*phi/(4.0*np.pi),'r--',linewidth=2.0,label=r'${\rm Geant4}$')
+
+ax.set_xscale('log')
+ax.set_yscale('log')
+ax.set_xlim(1.0e0,1.0e3)
+ax.set_ylim(5.0e-8,1.0e-6)
+ax.set_xlabel(r'$E_{\gamma}\, {\rm (GeV)}$',fontsize=fs)
+ax.set_ylabel(r'$E_{\gamma}\phi(E_{\gamma}) \, ({\rm GeV^{1.8}\, cm^{-2}\, s^{-1}\, sr^{-1}})$',fontsize=fs)
+for label_ax in (ax.get_xticklabels() + ax.get_yticklabels()):
+    label_ax.set_fontsize(fs)
+ax.legend(loc='lower right', prop={"size":fs})
+ax.grid(linestyle='--')
+
+plt.savefig('fg_phi_gamma.png')
 
 # Record the ending time
 end_time=time.time()
