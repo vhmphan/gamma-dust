@@ -195,30 +195,47 @@ def plot_jE_p_LOC(pars_prop, zeta_n, q_n):
     plt.close()
 
 # Plot the spatial cosmic-ray distribution
-def plot_jE_rz(fE, r, z):
+def plot_jE_rz(fE, rg, zg):
 
     fs=22
 
-    fig=plt.figure(figsize=(10, 4))
-    ax=plt.subplot(111)
+    fig = plt.figure(figsize=(10, 6))
+    gs = fig.add_gridspec(2, 2, height_ratios=[2, 1])
 
-    # im = ax.imshow(fE[0,:,:], origin='lower', extent=[r[0]*1.0e-3, r[-1]*1.0e-3, z[0]*1.0e-3, z[-1]*1.0e-3], cmap='magma', vmin=0, vmax=20)
-    im = ax.imshow(fE[0,:,:], origin='lower', extent=[r[0]*1.0e-3, r[-1]*1.0e-3, z[0]*1.0e-3, z[-1]*1.0e-3], cmap='magma')
+    # Spatial distribution over the entire grid
+    ax1 = fig.add_subplot(gs[0, :])
+    im = ax1.imshow(fE[0,:,:], origin='lower', extent=[rg[0]*1.0e-3, rg[-1]*1.0e-3, zg[0]*1.0e-3, zg[-1]*1.0e-3], cmap='magma')
 
     ## Colourbar
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="5%", pad=0.1)
+    divider = make_axes_locatable(ax1)
+    cax = divider.append_axes("right", size="2%", pad=0.05)
     cbar = plt.colorbar(im, cax=cax)
-    cax.set_ylabel(r"$f(E) \, ({\rm eV^{-1}\, cm^{-3}})$")  
+    cax.set_ylabel(r'$f(E) \, ({\rm eV^{-1}\, cm^{-3}})$')  
+    ax1.set_title(r'$E=10$\,{\rm GeV}')
+    ax1.set_xlabel(r"$r_{G}\,{\rm [kpc]}$")
+    ax1.set_ylabel(r"$z_{G}\,{\rm [kpc]}$")
 
-    ## Plot ranges, labels, grid
-    # ax.set_xlim([x0, -x0])
-    # ax.set_ylim([y0, -y0])
-    ax.set_xlabel(r"$x\,{\rm [kpc]}$")
-    ax.set_ylabel(r"$y\,{\rm [kpc]}$")
-    # for label_ax in (ax.get_xticklabels() + ax.get_yticklabels()):
-    #     label_ax.set_fontsize(fs)
-    plt.subplots_adjust(left=0.12, right=0.9, bottom=0.09, top=0.97)
+    # Profile over r
+    ax2 = fig.add_subplot(gs[1, 0])
+    ax2.plot(rg*1.0e-3, fE[0,:,0], 'r')
+    ax2.set_title(r'$E=10$\,{\rm GeV}\, {\rm and}\, $z_G=0$\,{\rm kpc}')
+    ax2.set_xlabel(r'$r_{G}\,{\rm [kpc]}$')
+    ax2.set_ylabel(r'$f(E) \, ({\rm eV^{-1}\, cm^{-3}})$')
+    ax2.set_xlim(rg[0]*1.0e-3,rg[-1]*1.0e-3)
+
+    # Profile over z
+    ax3 = fig.add_subplot(gs[1, 1])
+    ax3.plot(zg*1.0e-3, fE[0,0,:], 'r')
+    # ax3.plot(zg*1.0e-3, fE[0,rg==4000.0,:][0], 'g')
+    # ax3.plot(zg*1.0e-3, fE[0,rg==8000.0,:][0], 'k')
+    ax3.set_title(r'$E=10$\,{\rm GeV}\, {\rm and}\, $r_G=0$\,{\rm kpc}')
+    ax3.set_xlabel(r'$z_{G}\,{\rm [kpc]}$')
+    ax3.set_ylabel(r'$f(E) \, ({\rm eV^{-1}\, cm^{-3}})$')
+    ax3.set_xlim(zg[0]*1.0e-3,zg[-1]*1.0e-3)
+
+    fig.tight_layout(pad=1.0)
+    fig.subplots_adjust(hspace=0.05, wspace=0.15, top=1.1, bottom=0.1, left=0.05, right=0.95)
+    
     plt.savefig("fg_fE.png", dpi=600)
     plt.close()
 

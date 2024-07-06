@@ -5,17 +5,15 @@ import LibproCR as pCR
 import matplotlib.pyplot as plt
 import time
 from astropy.io import fits
-import healpy as hp
-from healpy.newvisufunc import projview, newprojplot
 
 mp=pCR.mp # eV -> Proton mass
+
+# Record the starting time
+start_time=time.time()
 
 # Find the first 'num_zeros' zeros of the zeroth order Bessel function J0
 num_zeros=150
 zeta_n=sp.special.jn_zeros(0, num_zeros)
-
-# Record the starting time
-start_time = time.time()
 
 # Size of the cosmic-ray halo
 R=20000.0 # pc -> Radius of halo
@@ -45,6 +43,9 @@ fE[fE<0.0]=0.0
 vp=np.sqrt((E+mp)**2-mp**2)*3.0e10/(E+mp)
 jE=fE*vp[:,np.newaxis,np.newaxis]*1.0e9 # GeV^-1 cm^-2 s^-1
 
+# Record the time finishing computing cosmic-ray distribution
+CR_time=time.time()
+
 # Compute the cross-section from Kafexhiu's code (numpy deos not work)
 Eg=np.logspace(1,2,11)
 dXSdEg_Geant4=np.zeros((len(E),len(Eg))) 
@@ -60,75 +61,36 @@ pCR.plot_jE_p_LOC(pars_prop,zeta_n,q_n)
 pCR.plot_jE_rz(fE,rg,zg)
 pCR.plot_emissivity_LOC(qg_Geant4,Eg,rg,zg)
 
-# Open the FITS file and get info on the data
+# Load gas density
 hdul=fits.open('samples_densities_hpixr.fits')
 print(hdul.info())
 
-# Access data and header of the primary HDU
 rs=(hdul[2].data)['radial pixel edges'].astype(np.float64) # Edges of radial bins
 drs=np.diff(rs)*3.086e21
 rs=(hdul[1].data)['radial pixel centres'].astype(np.float64)*1.0e3 # Edges of radial bins
 samples_HI=(hdul[3].data).T # cm^-3
 samples_H2=(hdul[4].data).T # cm^-3
 hdul.close()
+ngas=2.0*samples_H2+samples_HI # cm^-3
 
+# Interpolate cosmic-ray distribution on healpix-r grid as gas
 N_sample, N_rs, N_pix=samples_HI.shape
 NSIDE=int(np.sqrt(N_pix/12))
-
-ngas=np.mean(2.0*samples_H2+samples_HI,axis=0) # cm^-3
 qg_Geant4_healpixr=pCR.get_healpix_interp(qg_Geant4,Eg,rg,zg,rs,NSIDE) # GeV^-1 s^-1
-gamma_map=np.sum(ngas[np.newaxis,:,:]*qg_Geant4_healpixr*drs[np.newaxis,:,np.newaxis],axis=1) # GeV^-1 cm^-2 s^-1
 
-projview(
-    np.log10(gamma_map[0,:]), 
-    title=r'Gamma-ray intensity $E_\gamma=%.1f$ GeV' % Eg[0],
-    coord=["G"], cmap='magma',
-    # min=-8.5, max=-4.5,
-    nest=True, 
-    unit=r'$\log_{10}\phi_{\rm gamma}(E_\gamma)\, [{\rm GeV}^{-1}\, {\rm cm}^{-2}\, {\rm s}^{-2}]$',
-    graticule=True, graticule_labels=True, 
-    # xlabel=r'longitude (deg)',
-    # ylabel=r'latitude (deg)',
-    projection_type="mollweide"
-)
-plt.savefig('fg_gamma-map.png', dpi=150)
-plt.close()
+# Compute the diffuse emission in all gas samples
+gamma_map=np.sum(ngas[:,np.newaxis,:,:]*qg_Geant4_healpixr[np.newaxis,:,:,:]*drs[np.newaxis,np.newaxis,:,np.newaxis],axis=2) # GeV^-1 cm^-2 s^-1
 
-
-# Get pixel coordinates to mask part of the map since these maps are valid only at high lattitude
-l, b=hp.pixelfunc.pix2ang(NSIDE, np.arange(N_pix), lonlat=True, nest=True)
-l=np.where(l<0,l+360,l)
-
-# Mask the disk since dust map is only up to 1.25 kpc
-mask=(b<=30.0) | (b>=60.0) | (l<=240.0) | (l>=270.0)
-gamma_map[:,mask]=np.nan
-phi=np.nanmean(gamma_map,axis=1)
-
-fs=22
-
-fig=plt.figure(figsize=(10, 8))
-ax=plt.subplot(111)
-
-ax.plot(Eg,Eg**2.8*phi/(4.0*np.pi),'r--',linewidth=2.0,label=r'${\rm Geant4}$')
-
-ax.set_xscale('log')
-ax.set_yscale('log')
-ax.set_xlim(1.0e0,1.0e3)
-ax.set_ylim(5.0e-8,1.0e-6)
-ax.set_xlabel(r'$E_{\gamma}\, {\rm (GeV)}$',fontsize=fs)
-ax.set_ylabel(r'$E_{\gamma}\phi(E_{\gamma}) \, ({\rm GeV^{1.8}\, cm^{-2}\, s^{-1}\, sr^{-1}})$',fontsize=fs)
-for label_ax in (ax.get_xticklabels() + ax.get_yticklabels()):
-    label_ax.set_fontsize(fs)
-ax.legend(loc='lower right', prop={"size":fs})
-ax.grid(linestyle='--')
-
-plt.savefig('fg_phi_gamma.png')
-
-# Record the ending time
+# Record the time finishing computing cosmic-ray map
 end_time=time.time()
 
 # Calculate the elapsed time
-elapsed_time=end_time-start_time
+elapsed_time_CR=CR_time-start_time
+elapsed_time_gamma=end_time-CR_time
 
-print("Elapsed time:", elapsed_time, "seconds")
+print("Cosmic-ray computing time:                 ", elapsed_time_CR, "seconds")
+print("Gamma-ray computing time in %d energy bin: " % len(Eg), elapsed_time_gamma, "seconds")
+
+# Save the gamma-ray maps in a .npz file
+np.savez('gamma_map.npz', Eg=Eg, gamma_map=gamma_map)
 
