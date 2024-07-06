@@ -47,7 +47,7 @@ jE=fE*vp[:,np.newaxis,np.newaxis]*1.0e9 # GeV^-1 cm^-2 s^-1
 CR_time=time.time()
 
 # Compute the cross-section from Kafexhiu's code (numpy deos not work)
-Eg=np.logspace(1,2,11)
+Eg=np.logspace(1,2,2)
 dXSdEg_Geant4=np.zeros((len(E),len(Eg))) 
 for i in range(len(E)):
     for j in range(len(Eg)):
