@@ -59,6 +59,7 @@ def func_D_rigid(E):
 
 # Normalization for the injection spectrum
 def func_Gam(alpha):
+
     xmin=np.sqrt((1.0e8+mp)**2-mp**2)/mp
     xmax=np.sqrt((1.0e14+mp)**2-mp**2)/mp
     
@@ -82,24 +83,25 @@ def func_QSNR(alpha, xiSNR, E):
     return RSNR*Q # eV^-1 yr^-1
 
 # Compute the differential number density of protons
-def func_fE(pars_prop, zeta_n, q_n, E, r, z):
+def func_fE(pars_prop, zeta_n, q_n, E, rg, zg):
+# E (eV), rg (pc), and zg (pc)
 
     R=pars_prop[0] # pc
     L=pars_prop[1] # pc
     alpha=pars_prop[2] 
     xiSNR=pars_prop[3]
-    u0=pars_prop[4]*365.0*86400.0/3.086e18 # pc/yr -> Advection speed
+    u0=pars_prop[4]*365.0*86400.0/3.086e18 # km/s to pc/yr -> Advection speed
 
     Diff=func_D_rigid(E)[np.newaxis,:,np.newaxis,np.newaxis] # pc^2/yr
     QE=func_QSNR(alpha,xiSNR,E)[np.newaxis,:,np.newaxis,np.newaxis] # eV^-1 yr^-1
 
-    z=z[np.newaxis,np.newaxis,np.newaxis,:]
-    r=r[np.newaxis,np.newaxis,:,np.newaxis]
+    zg=zg[np.newaxis,np.newaxis,np.newaxis,:]
+    rg=rg[np.newaxis,np.newaxis,:,np.newaxis]
     zeta_n=zeta_n[:,np.newaxis,np.newaxis,np.newaxis]
     q_n=q_n[:,np.newaxis,np.newaxis,np.newaxis]
 
     Sn=np.sqrt((u0/Diff)**2+4.0*(zeta_n/R)**2) # pc^-2
-    fEn=sp.special.j0(zeta_n*r/R)*QE*q_n*np.exp(u0*z/(2.0*Diff))*np.sinh(Sn*(L-z)/2.0)/(np.sinh(Sn*L/2.0)*(u0+Sn*Diff*(np.cosh(Sn*L/2.0)/np.sinh(Sn*L/2.0))))
+    fEn=sp.special.j0(zeta_n*rg/R)*QE*q_n*np.exp(u0*zg/(2.0*Diff))*np.sinh(Sn*(L-zg)/2.0)/(np.sinh(Sn*L/2.0)*(u0+Sn*Diff*(np.cosh(Sn*L/2.0)/np.sinh(Sn*L/2.0))))
     fE=np.sum(fEn,axis=0)
 
     return fE/(3.086e18)**3 # eV^-1 cm^-3
@@ -272,7 +274,7 @@ def plot_emi_LOC(qg, Eg, rg, zg, Rsol):
 def get_healpix_interp(qg, Eg, rg, zg, rs, NSIDE, Rsol):
 
     # Grid on which emissivity is calculated
-    points = (rg, zg)
+    points=(rg,zg)
 
     # Grid on which emissivity is interpolated
     N_rs=len(rs)
