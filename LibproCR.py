@@ -132,12 +132,12 @@ def plot_gSNR(zeta_n,q_n,r,R):
     plt.close()
 
 # Plot the local spectrum
-def plot_jE_p_LOC(pars_prop, zeta_n, q_n):
+def plot_jEp_LOC(pars_prop, zeta_n, q_n, Rsol):
 
     fs=22
 
     E=np.logspace(8.0,14.0,61)
-    fE_loc=func_fE(pars_prop,zeta_n,q_n,E,np.array([8178.0]),np.array([0.0]))[:,0,0]
+    fE_loc=func_fE(pars_prop,zeta_n,q_n,E,np.array([Rsol]),np.array([0.0]))[:,0,0]
     vp=np.sqrt((E+mp)**2-mp**2)*3.0e10/(E+mp)
 
     fig=plt.figure(figsize=(10, 8))
@@ -191,63 +191,63 @@ def plot_jE_p_LOC(pars_prop, zeta_n, q_n):
     ax.legend(loc='lower left', prop={"size":fs})
     ax.grid(linestyle='--')
 
-    plt.savefig("fg_jE_p_LOC.png")
+    plt.savefig("fg_jEp_LOC.png")
     plt.close()
 
 # Plot the spatial cosmic-ray distribution
-def plot_jE_rz(fE, rg, zg):
+def plot_jEp_GAL(jE, rg, zg):
 
     fs=22
 
-    fig = plt.figure(figsize=(10, 6))
+    fig = plt.figure(figsize=(14, 8))
     gs = fig.add_gridspec(2, 2, height_ratios=[2, 1])
 
     # Spatial distribution over the entire grid
     ax1 = fig.add_subplot(gs[0, :])
-    im = ax1.imshow(fE[0,:,:], origin='lower', extent=[rg[0]*1.0e-3, rg[-1]*1.0e-3, zg[0]*1.0e-3, zg[-1]*1.0e-3], cmap='magma')
+    im = ax1.imshow(jE[0,:,:], origin='lower', extent=[rg[0]*1.0e-3, rg[-1]*1.0e-3, zg[0]*1.0e-3, zg[-1]*1.0e-3], cmap='magma')
 
     ## Colourbar
     divider = make_axes_locatable(ax1)
     cax = divider.append_axes("right", size="2%", pad=0.05)
     cbar = plt.colorbar(im, cax=cax)
-    cax.set_ylabel(r'$f(E) \, ({\rm eV^{-1}\, cm^{-3}})$')  
+    cax.set_ylabel(r'$f(E) \, ({\rm GeV^{-1}\, cm^{-2}\, s^{-1}\, sr^{-1}})$')  
     ax1.set_title(r'$E=10$\,{\rm GeV}')
     ax1.set_xlabel(r"$r_{G}\,{\rm [kpc]}$")
     ax1.set_ylabel(r"$z_{G}\,{\rm [kpc]}$")
 
     # Profile over r
     ax2 = fig.add_subplot(gs[1, 0])
-    ax2.plot(rg*1.0e-3, fE[0,:,0], 'r')
+    ax2.plot(rg*1.0e-3, jE[0,:,0], 'r')
     ax2.set_title(r'$E=10$\,{\rm GeV}\, {\rm and}\, $z_G=0$\,{\rm kpc}')
     ax2.set_xlabel(r'$r_{G}\,{\rm [kpc]}$')
-    ax2.set_ylabel(r'$f(E) \, ({\rm eV^{-1}\, cm^{-3}})$')
+    ax2.set_ylabel(r'$f(E) \, ({\rm GeV^{-1}\, cm^{-2}\, s^{-1}\, sr^{-1}})$')
     ax2.set_xlim(rg[0]*1.0e-3,rg[-1]*1.0e-3)
 
     # Profile over z
     ax3 = fig.add_subplot(gs[1, 1])
-    ax3.plot(zg*1.0e-3, fE[0,0,:], 'r')
+    ax3.plot(zg*1.0e-3, jE[0,0,:], 'r')
     # ax3.plot(zg*1.0e-3, fE[0,rg==4000.0,:][0], 'g')
     # ax3.plot(zg*1.0e-3, fE[0,rg==8000.0,:][0], 'k')
     ax3.set_title(r'$E=10$\,{\rm GeV}\, {\rm and}\, $r_G=0$\,{\rm kpc}')
     ax3.set_xlabel(r'$z_{G}\,{\rm [kpc]}$')
-    ax3.set_ylabel(r'$f(E) \, ({\rm eV^{-1}\, cm^{-3}})$')
+    ax3.set_ylabel(r'$f(E) \, ({\rm GeV^{-1}\, cm^{-2}\, s^{-1}\, sr^{-1}})$')
     ax3.set_xlim(zg[0]*1.0e-3,zg[-1]*1.0e-3)
 
     fig.tight_layout(pad=1.0)
     fig.subplots_adjust(hspace=0.05, wspace=0.15, top=1.1, bottom=0.1, left=0.05, right=0.95)
     
-    plt.savefig("fg_fE.png", dpi=600)
+    plt.savefig("fg_jEp_GAL.png", dpi=600)
     plt.close()
 
 # Plot the local gamma-ray emissivity
-def plot_emissivity_LOC(qg, Eg, r, z):
+def plot_emi_LOC(qg, Eg, rg, zg, Rsol):
 
     fs=22
 
     fig=plt.figure(figsize=(10, 8))
     ax=plt.subplot(111)
 
-    ax.plot(Eg,qg[:,r==8000.0,z==0.0]/(4.0*np.pi),'k-',linewidth=3,label=r'${\rm Local\, Emissivity}$')
+    ax.plot(Eg,qg[:,np.abs(rg-Rsol)==np.amin(np.abs(rg-Rsol)),zg==0.0]/(4.0*np.pi),'k-',linewidth=3,label=r'${\rm Local\, Emissivity}$')
 
     ax.set_xscale('log')
     ax.set_yscale('log')
@@ -257,6 +257,7 @@ def plot_emissivity_LOC(qg, Eg, r, z):
         label_axd.set_fontsize(fs)
     # ax.set_xlim(1.0,100.0)
     # ax.set_ylim(1.0e-37,1.0e-36)
+    ax.set_title(r'{\rm Emissivity at $r_G=%.1f$ pc}' % rg[np.abs(rg-Rsol)==np.amin(np.abs(rg-Rsol))], fontsize=fs)
     ax.legend(loc='lower left', prop={"size":fs})
     ax.grid(linestyle='--')
 
@@ -268,13 +269,12 @@ def plot_emissivity_LOC(qg, Eg, r, z):
 #############################################################################
 
 # Function to interpolate emissivity on healpix-r grid
-def get_healpix_interp(qg, Eg, rg, zg, rs, NSIDE):
+def get_healpix_interp(qg, Eg, rg, zg, rs, NSIDE, Rsol):
 
     # Grid on which emissivity is calculated
     points = (rg, zg)
 
     # Grid on which emissivity is interpolated
-    Rsol=8178.0  # pc
     N_rs=len(rs)
     N_pix=12*NSIDE**2
     N_E=len(Eg)
@@ -291,7 +291,7 @@ def get_healpix_interp(qg, Eg, rg, zg, rs, NSIDE):
     ys=-rs*np.sin(ls)*np.cos(bs)
     zs=rs*np.sin(bs)
 
-    points_intr=(np.sqrt(xs**2 + ys**2), np.abs(zs))
+    points_intr=(np.sqrt(xs**2+ys**2), np.abs(zs))
 
     # Interpolator
     qg_healpix=np.zeros((N_E, N_rs, N_pix))
