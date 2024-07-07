@@ -264,35 +264,38 @@ def plot_emissivity_LOC(qg, Eg, r, z):
     plt.close()
 
 #############################################################################
-# Functions for line of sight integration
+# Function to interpolate emissivity on healpix-r grid
 #############################################################################
+
+# Function to interpolate emissivity on healpix-r grid
 def get_healpix_interp(qg, Eg, rg, zg, rs, NSIDE):
 
     # Grid on which emissivity is calculated
-    points=(rg, zg)
+    points = (rg, zg)
 
     # Grid on which emissivity is interpolated
-    Rsol=8178.0 # pc
+    Rsol=8178.0  # pc
     N_rs=len(rs)
     N_pix=12*NSIDE**2
     N_E=len(Eg)
 
-    # Interpolate the emissivity on the healpix-r grid
-    qg_healpix=np.zeros((N_E,N_rs,N_pix))
-    for ipix in range(N_pix):
-        thetas, phis=hp.pix2ang(NSIDE, ipix, nest=True, lonlat=False) ## returns theta, phi in rad
-        ls=np.repeat(phis,              N_rs)
-        bs=np.repeat(np.pi/2. - thetas, N_rs)
+    # Angles for all pixels
+    thetas, phis = hp.pix2ang(NSIDE, np.arange(N_pix), nest=True, lonlat=False)
 
-        # Compute (x, y, z)
-        # Convention: Sun is at (x,y,z) = (Rsol,0,0) and ell=0 is pointing opposite to the x-direction
-        xs=-rs*np.cos(ls)*np.cos(bs)+Rsol
-        ys=-rs*np.sin(ls)*np.cos(bs)        
-        zs=rs*np.sin(bs)
+    # Points for interpolation
+    ls=phis[np.newaxis,:]
+    bs=np.pi/2.0-thetas[np.newaxis,:]
+    rs=rs[:,np.newaxis]
 
-        for j in range(N_E):
-            # Create collection of points where the emissivity is interpolated
-            points_intr=np.vstack((np.sqrt(xs**2+ys**2),np.abs(zs))).T
-            qg_healpix[j,:,ipix]=sp.interpolate.interpn(points, qg[j,:,:], points_intr, bounds_error=False, fill_value=0.0)
+    xs=-rs*np.cos(ls)*np.cos(bs)+Rsol
+    ys=-rs*np.sin(ls)*np.cos(bs)
+    zs=rs*np.sin(bs)
+
+    points_intr=(np.sqrt(xs**2 + ys**2), np.abs(zs))
+
+    # Interpolator
+    qg_healpix=np.zeros((N_E, N_rs, N_pix))
+    for j in range(1):
+        qg_healpix[j,:,:]=sp.interpolate.interpn(points, qg[j,:,:], points_intr, bounds_error=False, fill_value=0.0)
 
     return qg_healpix

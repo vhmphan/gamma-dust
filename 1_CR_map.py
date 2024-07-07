@@ -47,7 +47,7 @@ jE=fE*vp[:,np.newaxis,np.newaxis]*1.0e9 # GeV^-1 cm^-2 s^-1
 CR_time=time.time()
 
 # Compute the cross-section from Kafexhiu's code (numpy deos not work)
-Eg=np.logspace(1,2,2)
+Eg=np.logspace(1,2,11)
 dXSdEg_Geant4=np.zeros((len(E),len(Eg))) 
 for i in range(len(E)):
     for j in range(len(Eg)):
@@ -63,8 +63,6 @@ pCR.plot_emissivity_LOC(qg_Geant4,Eg,rg,zg)
 
 # Load gas density
 hdul=fits.open('samples_densities_hpixr.fits')
-print(hdul.info())
-
 rs=(hdul[2].data)['radial pixel edges'].astype(np.float64) # kpc -> Edges of radial bins
 drs=np.diff(rs)*3.086e21 # cm -> Radial bin width for line-of-sight integration
 rs=(hdul[1].data)['radial pixel centres'].astype(np.float64)*1.0e3 # pc -> Centres of radial bins for interpolating cosmic-ray distribution
