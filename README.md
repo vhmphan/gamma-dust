@@ -24,4 +24,6 @@ python3 2_plot.py
 
 You will find the gamma-ray maps as shown below.
 
-![Diffuse gamma-ray map and uncertainty](https://drive.google.com/file/d/1nxmu7CNI7E_eezKqspYkMoJtsizDeE9s)
+![Diffuse gamma-ray map and uncertainty](https://drive.google.com/uc?export=view&id=1nxmu7CNI7E_eezKqspYkMoJtsizDeE9s)
+
+
