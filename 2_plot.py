@@ -33,7 +33,7 @@ projview(
     min=-2, max=-0.4,
     cbar_ticks=[-2, -1, -0.4],
     nest=True, 
-    unit=r'$\log_{10}\Delta\phi_{\rm gamma}(E_\gamma)/\phi_{\rm gamma}(E_\gamma)$',
+    unit=r'$\log_{10}\left[\Delta\phi_{\rm gamma}(E_\gamma)/\phi_{\rm gamma}(E_\gamma)\right]$',
     graticule=True, graticule_labels=True, 
     # xlabel=r'longitude (deg)',
     # ylabel=r'latitude (deg)',
