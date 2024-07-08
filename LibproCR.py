@@ -38,11 +38,12 @@ def func_gSNR_YUK04(r):
 # r (pc)
 
     r=np.array(r)*1.0e-3 # kpc
-    gSNR=np.zeros_like(r)
-    mask=(r<15.0)
-    gSNR[mask]=np.power((r[mask]+0.55)/9.05,1.64)*np.exp(-4.01*(r[mask]-8.5)/9.05)
-    
-    return gSNR/5.95828e+8 # pc^-2
+    gSNR=np.where(
+        r<15.0,
+        np.power((r+0.55)/9.05,1.64)*np.exp(-4.01*(r-8.5)/9.05)/5.95828e+8,
+        0.0
+    )    
+    return gSNR # pc^-2
 
 # Diffusion coefficient -> Rigidity dependence (Genolini et al. 2017)
 def func_D_rigid(E):
@@ -52,8 +53,7 @@ def func_D_rigid(E):
     p=np.sqrt((E+mp)**2-mp**2)  # eV
     vp=p/(E+mp)
 
-    Diff=1.1e28*vp*(p/1.0e9)**0.63/(1.0+(p/pb)**2)**0.1
-    Diff*=365.0*86400.0/(3.08567758e18)**2
+    Diff=1.1e28*(365.0*86400.0/(3.08567758e18)**2)*vp*(p/1.0e9)**0.63/(1.0+(p/pb)**2)**0.1
     
     return Diff # pc^2/yr
 
@@ -63,7 +63,7 @@ def func_Gam(alpha):
     xmin=np.sqrt((1.0e8+mp)**2-mp**2)/mp
     xmax=np.sqrt((1.0e14+mp)**2-mp**2)/mp
     
-    Gam, _ = sp.integrate.quad(lambda x: x**(2.0-alpha)*(np.sqrt(x**2+1.0)-1.0),xmin,xmax)
+    Gam, _ =sp.integrate.quad(lambda x: x**(2.0-alpha)*(np.sqrt(x**2+1.0)-1.0),xmin,xmax)
     
     return Gam
 
@@ -83,7 +83,7 @@ def func_QSNR(alpha, xiSNR, E):
     return RSNR*Q # eV^-1 yr^-1
 
 # Compute the differential number density of protons
-def func_fE(pars_prop, zeta_n, q_n, E, rg, zg):
+def func_jE(pars_prop, zeta_n, q_n, E, rg, zg):
 # E (eV), rg (pc), and zg (pc)
 
     R=pars_prop[0] # pc
@@ -94,6 +94,7 @@ def func_fE(pars_prop, zeta_n, q_n, E, rg, zg):
 
     Diff=func_D_rigid(E)[np.newaxis,:,np.newaxis,np.newaxis] # pc^2/yr
     QE=func_QSNR(alpha,xiSNR,E)[np.newaxis,:,np.newaxis,np.newaxis] # eV^-1 yr^-1
+    vp=np.sqrt((E+mp)**2-mp**2)*3.0e10/(E+mp)
 
     zg=zg[np.newaxis,np.newaxis,np.newaxis,:]
     rg=rg[np.newaxis,np.newaxis,:,np.newaxis]
@@ -102,9 +103,12 @@ def func_fE(pars_prop, zeta_n, q_n, E, rg, zg):
 
     Sn=np.sqrt((u0/Diff)**2+4.0*(zeta_n/R)**2) # pc^-2
     fEn=sp.special.j0(zeta_n*rg/R)*QE*q_n*np.exp(u0*zg/(2.0*Diff))*np.sinh(Sn*(L-zg)/2.0)/(np.sinh(Sn*L/2.0)*(u0+Sn*Diff*(np.cosh(Sn*L/2.0)/np.sinh(Sn*L/2.0))))
-    fE=np.sum(fEn,axis=0)
+    fE=np.sum(fEn,axis=0) # eV^-1 pc^-3
+    fE=np.where(fE<0.0,0.0,fE)
 
-    return fE/(3.086e18)**3 # eV^-1 cm^-3
+    jE=fE*vp[:,np.newaxis,np.newaxis]*1.0e9/(3.086e18)**3 
+
+    return jE # GeV^-1 cm^-2 s^-1
 
 #############################################################################
 # Plots
@@ -139,15 +143,14 @@ def plot_jEp_LOC(pars_prop, zeta_n, q_n, Rsol):
     fs=22
 
     E=np.logspace(8.0,14.0,61)
-    fE_loc=func_fE(pars_prop,zeta_n,q_n,E,np.array([Rsol]),np.array([0.0]))[:,0,0]
-    vp=np.sqrt((E+mp)**2-mp**2)*3.0e10/(E+mp)
+    jE_loc=func_jE(pars_prop,zeta_n,q_n,E,np.array([Rsol]),np.array([0.0]))[:,0,0]/(4.0*np.pi)
 
     fig=plt.figure(figsize=(10, 8))
     ax=plt.subplot(111)
 
     n=2
 
-    ax.plot(E,E**n*fE_loc*vp/(4.0*np.pi),'k-',linewidth=3,label=r'${\rm Local\, Spectrum}$')
+    ax.plot(E,E**n*jE_loc/(4.0*np.pi),'k-',linewidth=3,label=r'${\rm Local\, Spectrum}$')
 
     # Read data of CRDB file
     # AMS data
@@ -212,7 +215,7 @@ def plot_jEp_GAL(jE, rg, zg):
     divider = make_axes_locatable(ax1)
     cax = divider.append_axes("right", size="2%", pad=0.05)
     cbar = plt.colorbar(im, cax=cax)
-    cax.set_ylabel(r'$f(E) \, ({\rm GeV^{-1}\, cm^{-2}\, s^{-1}\, sr^{-1}})$')  
+    cax.set_ylabel(r'$j(E) \, ({\rm GeV^{-1}\, cm^{-2}\, s^{-1}\, sr^{-1}})$')  
     ax1.set_title(r'$E=10$\,{\rm GeV}')
     ax1.set_xlabel(r"$r_{G}\,{\rm [kpc]}$")
     ax1.set_ylabel(r"$z_{G}\,{\rm [kpc]}$")
@@ -222,7 +225,7 @@ def plot_jEp_GAL(jE, rg, zg):
     ax2.plot(rg*1.0e-3, jE[0,:,0], 'r')
     ax2.set_title(r'$E=10$\,{\rm GeV}\, {\rm and}\, $z_G=0$\,{\rm kpc}')
     ax2.set_xlabel(r'$r_{G}\,{\rm [kpc]}$')
-    ax2.set_ylabel(r'$f(E) \, ({\rm GeV^{-1}\, cm^{-2}\, s^{-1}\, sr^{-1}})$')
+    ax2.set_ylabel(r'$j(E) \, ({\rm GeV^{-1}\, cm^{-2}\, s^{-1}\, sr^{-1}})$')
     ax2.set_xlim(rg[0]*1.0e-3,rg[-1]*1.0e-3)
 
     # Profile over z
@@ -297,7 +300,7 @@ def get_healpix_interp(qg, Eg, rg, zg, rs, NSIDE, Rsol):
 
     # Interpolator
     qg_healpix=np.zeros((N_E, N_rs, N_pix))
-    for j in range(1):
+    for j in range(N_E):
         qg_healpix[j,:,:]=sp.interpolate.interpn(points, qg[j,:,:], points_intr, bounds_error=False, fill_value=0.0)
 
     return qg_healpix

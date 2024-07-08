@@ -39,12 +39,7 @@ q_n=pCR.compute_coefficients(pCR.func_gSNR_YUK04,zeta_n,R)
 rg=np.linspace(0.0,R,501)    # pc
 zg=np.linspace(0.0,L,41)     # pc
 E=np.logspace(10.0,14.0,81) # eV 
-fE=pCR.func_fE(pars_prop,zeta_n,q_n,E,rg,zg) # eV^-1 cm^-3
-fE[fE<0.0]=0.0
-
-# Compute the cosmic-ray flux
-vp=np.sqrt((E+mp)**2-mp**2)*3.0e10/(E+mp)
-jE=fE*vp[:,np.newaxis,np.newaxis]*1.0e9 # GeV^-1 cm^-2 s^-1
+jE=pCR.func_jE(pars_prop,zeta_n,q_n,E,rg,zg) # GeV^-1 cm^-2 s^-1
 
 # Record the time finishing computing cosmic-ray distribution
 CR_time=time.time()
