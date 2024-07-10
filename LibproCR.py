@@ -92,9 +92,8 @@ def func_jE(pars_prop, zeta_n, q_n, E, rg, zg):
     xiSNR=pars_prop[3]
     u0=pars_prop[4]*365.0*86400.0/3.086e18 # km/s to pc/yr -> Advection speed
 
+    QE=func_QSNR(alpha,xiSNR,E)*np.sqrt((E+mp)**2-mp**2)*3.0e10/(E+mp) # eV^-1 yr^-1 cm s^-1
     Diff=func_D_rigid(E)[np.newaxis,:,np.newaxis,np.newaxis] # pc^2/yr
-    QE=func_QSNR(alpha,xiSNR,E)[np.newaxis,:,np.newaxis,np.newaxis] # eV^-1 yr^-1
-    vp=np.sqrt((E+mp)**2-mp**2)*3.0e10/(E+mp)
 
     zg=zg[np.newaxis,np.newaxis,np.newaxis,:]
     rg=rg[np.newaxis,np.newaxis,:,np.newaxis]
@@ -102,11 +101,11 @@ def func_jE(pars_prop, zeta_n, q_n, E, rg, zg):
     q_n=q_n[:,np.newaxis,np.newaxis,np.newaxis]
 
     Sn=np.sqrt((u0/Diff)**2+4.0*(zeta_n/R)**2) # pc^-2
-    fEn=sp.special.j0(zeta_n*rg/R)*QE*q_n*np.exp(u0*zg/(2.0*Diff))*np.sinh(Sn*(L-zg)/2.0)/(np.sinh(Sn*L/2.0)*(u0+Sn*Diff*(np.cosh(Sn*L/2.0)/np.sinh(Sn*L/2.0))))
+    fEn=sp.special.j0(zeta_n*rg/R)*q_n*np.exp(u0*zg/(2.0*Diff))*np.sinh(Sn*(L-zg)/2.0)/(np.sinh(Sn*L/2.0)*(u0+Sn*Diff*(np.cosh(Sn*L/2.0)/np.sinh(Sn*L/2.0))))
     fE=np.sum(fEn,axis=0) # eV^-1 pc^-3
     fE=np.where(fE<0.0,0.0,fE)
 
-    jE=fE*vp[:,np.newaxis,np.newaxis]*1.0e9/(3.086e18)**3 
+    jE=fE*QE[:,np.newaxis,np.newaxis]*1.0e9/(3.086e18)**3 
 
     return jE # GeV^-1 cm^-2 s^-1
 
@@ -124,9 +123,11 @@ def plot_gSNR(zeta_n,q_n,r,R):
 
     # Testing the Bessel series for the function of the surface density of SNRs
     gSNR_reconstructed=reconstruct_function(r,q_n,zeta_n,R)
+    gSNR=func_gSNR_YUK04(r)
 
-    ax.plot(r*1.0e-3,func_gSNR_YUK04(r),label='Original',lw=2)
+    ax.plot(r*1.0e-3,gSNR,label='Original',lw=2)
     ax.plot(r*1.0e-3,gSNR_reconstructed,label='Bessel series', lw=2, linestyle='--')
+
     ax.set_xlabel(r'$r\, ({\rm kpc})$',fontsize=fs)
     ax.set_ylabel(r'$g_{\rm SNR}(r)\,({\rm pc^{-2}})$', fontsize=fs)
     for label_ax in (ax.get_xticklabels() + ax.get_yticklabels()):

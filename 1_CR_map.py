@@ -6,8 +6,6 @@ import matplotlib.pyplot as plt
 import time
 from astropy.io import fits
 
-mp=pCR.mp # eV -> Proton mass
-
 # Record the starting time
 start_time=time.time()
 

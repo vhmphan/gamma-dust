@@ -22,6 +22,7 @@ hdul.close()
 NHImap=np.sum(samples_HI*dr[np.newaxis,:,np.newaxis],axis=1)
 NH2map=np.sum(samples_H2*dr[np.newaxis,:,np.newaxis],axis=1)
 N_sample, N_pix=NHImap.shape
+print(samples_HI.shape)
 
 fig=plt.figure(figsize=(12, 5))
 
