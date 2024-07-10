@@ -3,6 +3,7 @@ from jax import lax
 from jax import jit
 from jax import grad
 
+# Zeroth order Bessel function of first kind
 @jit
 def j0(x):
     def small_x(x):
@@ -25,6 +26,7 @@ def j0(x):
 
     return jnp.where(x < 5.0, small_x(x), large_x(x))
 
+# First order Bessel function of first kind
 @jit
 def j1(x):
     def small_x(x):
@@ -60,7 +62,7 @@ def func_gSNR_YUK04(r):
     )    
     return gSNR # pc^-2
 
-
+# Some functions to test jax on finding best fit with gradient descent
 @jit
 def jcompute_coefficients(zeta_n, R):
 
@@ -100,34 +102,59 @@ def loss_func(theta, zeta_n, R, r_data, gSNR_data):
 def update(theta, zeta_n, R, r_data, gSNR_data, lr=jnp.array([0.01,1.0e16,0.01])):
     return theta-lr*grad(loss_func)(theta,zeta_n,R,r_data,gSNR_data)
 
-# # Define the log-likelihood function
-# @jit
-# def log_likelihood(theta, r_data, gSNR_data, zeta_n, R):
-#     gSNR_fit = func_gSNR_fit(theta, zeta_n, R, r_data)
-#     return -0.5 * jnp.sum((gSNR_fit - gSNR_data)**2)
+@jit
+def func_jE_YUK04(pars_prop, zeta_n, E, r, z):
 
-# from jax import random
+    mp=938.272e6 # eV
 
-# # Define the MCMC sampler
-# def mcmc_sampler(log_prob_fn, initial_params, step_size, num_samples, num_burnin, key):
-#     num_params = len(initial_params)
-#     samples = []
-#     current_params = initial_params
-#     current_log_prob = log_prob_fn(current_params)
-    
-#     for i in range(num_samples + num_burnin):
-#         key, subkey = random.split(key)
-#         proposal = current_params + step_size * random.normal(subkey, shape=(num_params,))
-#         proposal_log_prob = log_prob_fn(proposal)
-        
-#         acceptance_prob = jnp.exp(proposal_log_prob - current_log_prob)
-#         key, subkey = random.split(key)
-#         accept = random.uniform(subkey) < acceptance_prob
-        
-#         current_params = lax.select(accept, proposal, current_params)
-#         current_log_prob = lax.select(accept, proposal_log_prob, current_log_prob)
-        
-#         if i >= num_burnin:
-#             samples.append(current_params)
-    
-#     return jnp.array(samples)
+    # Transsport parameters
+    R=pars_prop[0] # pc
+    L=pars_prop[1] # pc
+    alpha=pars_prop[2] 
+    xiSNR=pars_prop[3]
+    u0=pars_prop[4]*365.0*86400.0/3.086e18 # km/s to pc/yr -> Advection speed
+
+    p=jnp.sqrt((E+mp)**2-mp**2)  # eV
+    vp=p/(E+mp)
+
+    # Diffusion coefficient
+    pb=312.0e9
+    Diff=1.1e28*(365.0*86400.0/(3.08567758e18)**2)*vp*(p/1.0e9)**0.63/(1.0+(p/pb)**2)**0.1 # pc^2/yr
+
+    # Spatial distribution of sources
+    r_int=jnp.linspace(0.0,R,500000)*1.0e-3
+    fr_int=jnp.where(
+        r_int<15.0,
+        jnp.power((r_int+0.55)/9.05,1.64)*jnp.exp(-4.01*(r_int-8.5)/9.05)/5.95828e+8,
+        0.0
+    ) 
+    j0_n=j0(zeta_n[:,jnp.newaxis]*r_int[jnp.newaxis,:]*1.0e3/R)
+    q_n=jnp.trapezoid(r_int[jnp.newaxis,:]*fr_int[jnp.newaxis,:]*j0_n,r_int)
+    q_n*=1.0e6*(2.0/(R**2*(j1(zeta_n)**2))) # pc^-2
+
+    # Injection spectrum of sources
+    xmin=jnp.sqrt((1.0e8+mp)**2-mp**2)/mp
+    xmax=jnp.sqrt((1.0e14+mp)**2-mp**2)/mp
+    x=jnp.logspace(jnp.log10(xmin),jnp.log10(xmax),5000)
+    Gam=jnp.trapezoid(x**(2.0-alpha)*(jnp.sqrt(x**2+1.0)-1.0),x)
+    # print('hj',xmin)
+
+    RSNR=0.03 # yr^-1 -> SNR rate
+    ENSR=1.0e51*6.242e+11 # eV -> Average kinetic energy of SNRs
+    QE=(xiSNR*ENSR/(mp**2*vp*Gam))*(p/mp)**(2.0-alpha)
+    QE*=RSNR*vp*3.0e10
+
+    Diff=Diff[jnp.newaxis,:,jnp.newaxis,jnp.newaxis]
+    z=z[jnp.newaxis,jnp.newaxis,jnp.newaxis,:]
+    r=r[jnp.newaxis,jnp.newaxis,:,jnp.newaxis]
+    zeta_n=zeta_n[:,jnp.newaxis,jnp.newaxis,jnp.newaxis]
+    q_n=q_n[:,jnp.newaxis,jnp.newaxis,jnp.newaxis]
+
+    Sn=jnp.sqrt((u0/Diff)**2+4.0*(zeta_n/R)**2) # pc^-2
+    fEn=j0(zeta_n*r/R)*q_n*jnp.exp(u0*z/(2.0*Diff))*jnp.sinh(Sn*(L-z)/2.0)/(jnp.sinh(Sn*L/2.0)*(u0+Sn*Diff*(jnp.cosh(Sn*L/2.0)/jnp.sinh(Sn*L/2.0))))
+    fE=jnp.sum(fEn,axis=0) # eV^-1 pc^-3
+    fE=jnp.where(fE<0.0,0.0,fE)
+
+    jE=fE*QE[:,jnp.newaxis,jnp.newaxis]*1.0e9/(3.086e18)**3 
+
+    return jE # GeV^-1 cm^-2 s^-1
