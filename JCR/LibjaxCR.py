@@ -5,6 +5,8 @@ from jax import grad
 from jax import vmap
 import numpy as np
 import LibppGam_jax as ppG
+from astropy.io import fits
+import healpy as hp
 
 # Zeroth order Bessel function of first kind
 @jit
@@ -126,7 +128,7 @@ def func_jE_YUK04(pars_prop, zeta_n, E, r, z):
     Diff=1.1e28*(365.0*86400.0/(3.08567758e18)**2)*vp*(p/1.0e9)**0.63/(1.0+(p/pb)**2)**0.1 # pc^2/yr
 
     # Spatial distribution of sources
-    r_int=jnp.linspace(0.0,R,500000)*1.0e-3
+    r_int=jnp.linspace(0.0,R,200000)*1.0e-3
     fr_int=jnp.where(
         r_int<15.0,
         jnp.power((r_int+0.55)/9.05,1.64)*jnp.exp(-4.01*(r_int-8.5)/9.05)/5.95828e+8,
@@ -210,11 +212,125 @@ def func_dXSdEg(E, Eg):
     dXSdEg_Geant4=np.zeros((len(E),len(Eg))) 
     for i in range(len(E)):
         for j in range(len(Eg)):
-            dXSdEg_Geant4[i,j]=ppG.dsigma_dEgamma_Geant4(E[i],Eg[j])*1.0e-27 # cm^2/GeV
+            dXSdEg_Geant4[i,j]=ppG.dsigma_dEgamma_Geant4(E[i],Eg[j])*1.0e-27
     
-    return jnp.array(dXSdEg_Geant4)
+    return jnp.array(dXSdEg_Geant4) #  # cm^2 GeV^-1
 
 # Function to calculate the gamma-ray map
 @jit
 def func_gamma_map(ngas, qg_Geant4_healpixr, drs):
     return jnp.sum(ngas[:,jnp.newaxis,:,:]*qg_Geant4_healpixr[jnp.newaxis,:,:,:]*drs[jnp.newaxis,jnp.newaxis,:,jnp.newaxis],axis=2) # GeV^-1 cm^-2 s^-1
+
+# Function to load gas density, bin width of Heliocentric radial bin, and points for interpolating the 
+def load_gas(path_to_gas):
+
+    # Position of solar system from the gas map (see Soding et al. 2024)
+    Rsol=8178.0 # pc
+
+    hdul=fits.open(path_to_gas)
+    rs=(hdul[2].data)['radial pixel edges'].astype(np.float64) # kpc -> Edges of radial bins
+    drs=np.diff(rs)*3.086e21 # cm -> Radial bin width for line-of-sight integration
+    rs=(hdul[1].data)['radial pixel centres'].astype(np.float64)*1.0e3 # pc -> Centres of radial bins for interpolating cosmic-ray distribution
+    samples_HI=(hdul[3].data).T # cm^-3
+    samples_H2=(hdul[4].data).T # cm^-3
+    hdul.close()
+    ngas=2.0*samples_H2+samples_HI # cm^-3
+
+    N_sample, N_rs, N_pix=samples_HI.shape
+    NSIDE=int(np.sqrt(N_pix/12))
+
+    # Angles for all pixels
+    thetas, phis=hp.pix2ang(NSIDE,jnp.arange(N_pix),nest=True,lonlat=False)
+
+    # Points for interpolation
+    ls=phis[jnp.newaxis, :]
+    bs=jnp.pi/2.0-thetas[jnp.newaxis, :]
+    rs=rs[:, jnp.newaxis]
+
+    xs=-rs*jnp.cos(ls)*jnp.cos(bs)+Rsol
+    ys=-rs*jnp.sin(ls)*jnp.cos(bs)
+    zs=rs*jnp.sin(bs)
+
+    points_intr=(jnp.sqrt(xs**2+ys**2),jnp.abs(zs))
+
+    return jnp.array(ngas), jnp.array(drs), points_intr
+
+@jit
+def func_gamma_map_fit(theta, pars_prop, zeta_n, dXSdEg_Geant4, ngas, drs, points_intr, E):
+# E (eV) and Eg (GeV)
+
+    A, B, C=theta
+
+    mp=938.272e6 # eV
+
+    # Transsport parameters
+    R=pars_prop[0] # pc
+    L=pars_prop[1] # pc
+    alpha=pars_prop[2] 
+    xiSNR=pars_prop[3]
+    u0=pars_prop[4]*365.0*86400.0/3.086e18 # km/s to pc/yr -> Advection speed
+
+    rg=jnp.linspace(0.0,R,501)    # pc
+    zg=jnp.linspace(0.0,L,41)     # pc
+    p=jnp.sqrt((E+mp)**2-mp**2)  # eV
+    vp=p/(E+mp)
+
+    # Diffusion coefficient
+    pb=312.0e9
+    Diff=1.1e28*(365.0*86400.0/(3.08567758e18)**2)*vp*(p/1.0e9)**0.63/(1.0+(p/pb)**2)**0.1 # pc^2/yr
+
+    # Spatial distribution of sources
+    r_int=jnp.linspace(0.0,R,200000)*1.0e-3
+    fr_int=jnp.where(
+        r_int<15.0,
+        A*jnp.power((r_int+0.55)/9.05,B)*jnp.exp(-C*(r_int-8.5)/9.05),
+        0.0
+    ) 
+    j0_n=j0(zeta_n[:,jnp.newaxis]*r_int[jnp.newaxis,:]*1.0e3/R)
+    q_n=jnp.trapezoid(r_int[jnp.newaxis,:]*fr_int[jnp.newaxis,:]*j0_n,r_int)
+    q_n*=1.0e6*(2.0/(R**2*(j1(zeta_n)**2))) # pc^-2
+
+    # Injection spectrum of sources
+    xmin=jnp.sqrt((1.0e8+mp)**2-mp**2)/mp
+    xmax=jnp.sqrt((1.0e14+mp)**2-mp**2)/mp
+    x=jnp.logspace(jnp.log10(xmin),jnp.log10(xmax),5000)
+    Gam=jnp.trapezoid(x**(2.0-alpha)*(jnp.sqrt(x**2+1.0)-1.0),x)
+
+    RSNR=0.03 # yr^-1 -> SNR rate
+    ENSR=1.0e51*6.242e+11 # eV -> Average kinetic energy of SNRs
+    QE=(xiSNR*ENSR/(mp**2*vp*Gam))*(p/mp)**(2.0-alpha)
+    QE*=RSNR*vp*3.0e10
+
+    Diff=Diff[jnp.newaxis,:,jnp.newaxis,jnp.newaxis]
+    z=zg[jnp.newaxis,jnp.newaxis,jnp.newaxis,:]
+    r=rg[jnp.newaxis,jnp.newaxis,:,jnp.newaxis]
+    zeta_n=zeta_n[:,jnp.newaxis,jnp.newaxis,jnp.newaxis]
+    q_n=q_n[:,jnp.newaxis,jnp.newaxis,jnp.newaxis]
+
+    Sn=jnp.sqrt((u0/Diff)**2+4.0*(zeta_n/R)**2) # pc^-2
+    fEn=j0(zeta_n*r/R)*q_n*jnp.exp(u0*z/(2.0*Diff))*jnp.sinh(Sn*(L-z)/2.0)/(jnp.sinh(Sn*L/2.0)*(u0+Sn*Diff*(jnp.cosh(Sn*L/2.0)/jnp.sinh(Sn*L/2.0))))
+    fE=jnp.sum(fEn,axis=0) # eV^-1 pc^-3
+    fE=jnp.where(fE<0.0,0.0,fE)
+
+    jE=fE*QE[:,jnp.newaxis,jnp.newaxis]*1.0e9/(3.086e18)**3 # GeV^-1 cm^-2 s^-1
+
+    # Compute gamma-ray emissivity with cross section from Kafexhiu et al. 2014 (note that 1.8 is the enhancement factor due to nuclei)
+    qg_Geant4=1.8*jnp.trapezoid(jE[:,jnp.newaxis,:,:]*dXSdEg_Geant4[:,:,jnp.newaxis,jnp.newaxis], E*1.0e-9, axis=0) # GeV^-1 s^-1 
+
+    # Interpolate gamma-ray emissivity on healpix-r grid as gas
+    qg_Geant4_healpixr=get_healpix_interp(qg_Geant4,rg,zg,points_intr) # GeV^-1 s^-1 -> Interpolate gamma-ray emissivity
+
+    # Compute the diffuse emission in all gas samples
+    gamma_map=func_gamma_map(ngas,qg_Geant4_healpixr,drs) # GeV^-1 cm^-2 s^-1
+
+    return gamma_map
+
+@jit
+def loss_func_gamma_map(theta, pars_prop, zeta_n, dXSdEg_Geant4, ngas, drs, points_intr, E, gamma_map_data):
+    gamma_map_fit=func_gamma_map_fit(theta,pars_prop,zeta_n,dXSdEg_Geant4,ngas,drs,points_intr,E)
+
+    return jnp.mean((gamma_map_fit-gamma_map_data)**2)
+
+@jit
+def update_gamma_map(theta, pars_prop, zeta_n, dXSdEg_Geant4, ngas, drs, points_intr, E, gamma_map_data, lr):
+    return theta-lr*grad(loss_func_gamma_map)(theta,pars_prop,zeta_n,dXSdEg_Geant4,ngas,drs,points_intr,E,gamma_map_data)

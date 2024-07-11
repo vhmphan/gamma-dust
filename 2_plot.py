@@ -4,7 +4,7 @@ import healpy as hp
 from healpy.newvisufunc import projview, newprojplot
 
 # To load the data back from the .npz file
-data=np.load('JCR/gamma_map.npz')
+data=np.load('gamma_map.npz')
 Eg=data['Eg']
 gamma_map=data['gamma_map']
 
@@ -18,7 +18,7 @@ projview(
     min=-8.5, max=-4.5,
     cbar_ticks=[-8.5, -6.5, -4.5],
     nest=True, 
-    unit=r'$\log_{10}\phi_{\rm gamma}(E_\gamma)\, [{\rm GeV}^{-1}\, {\rm cm}^{-2}\, {\rm s}^{-2}]$',
+    unit=r'$\log_{10}\phi_{\rm \gamma}(E_\gamma)\, [{\rm GeV}^{-1}\, {\rm cm}^{-2}\, {\rm s}^{-2}]$',
     graticule=True, graticule_labels=True, 
     # xlabel=r'longitude (deg)',
     # ylabel=r'latitude (deg)',
@@ -33,7 +33,7 @@ projview(
     min=-2, max=-0.4,
     cbar_ticks=[-2, -1, -0.4],
     nest=True, 
-    unit=r'$\log_{10}\left[\Delta\phi_{\rm gamma}(E_\gamma)/\phi_{\rm gamma}(E_\gamma)\right]$',
+    unit=r'$\log_{10}\left[\Delta\phi_{\rm \gamma}(E_\gamma)/\phi_{\rm \gamma}(E_\gamma)\right]$',
     graticule=True, graticule_labels=True, 
     # xlabel=r'longitude (deg)',
     # ylabel=r'latitude (deg)',
