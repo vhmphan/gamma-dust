@@ -4,7 +4,7 @@ import healpy as hp
 from healpy.newvisufunc import projview, newprojplot
 
 # To load the data back from the .npz file
-data=np.load('gamma_map.npz')
+data=np.load('JCR/gamma_map.npz')
 Eg=data['Eg']
 gamma_map=data['gamma_map']
 
@@ -44,5 +44,5 @@ projview(
 fig.tight_layout(pad=1.0)
 fig.subplots_adjust(hspace=0.05, wspace=0.15, top=1.1, bottom=0.1, left=0.05, right=0.95)
 
-plt.savefig('fg_gamma-map.png', dpi=300)
+plt.savefig('fg_gamma-map_jax.png', dpi=300)
 plt.close()

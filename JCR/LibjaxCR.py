@@ -1,7 +1,10 @@
 import jax.numpy as jnp
-from jax import lax
+import jax.scipy as jsp
 from jax import jit
 from jax import grad
+from jax import vmap
+import numpy as np
+import LibppGam_jax as ppG
 
 # Zeroth order Bessel function of first kind
 @jit
@@ -102,6 +105,7 @@ def loss_func(theta, zeta_n, R, r_data, gSNR_data):
 def update(theta, zeta_n, R, r_data, gSNR_data, lr=jnp.array([0.01,1.0e16,0.01])):
     return theta-lr*grad(loss_func)(theta,zeta_n,R,r_data,gSNR_data)
 
+# Function to compute cosmic-ray flux for the YUK04 distribution of sources
 @jit
 def func_jE_YUK04(pars_prop, zeta_n, E, r, z):
 
@@ -158,3 +162,59 @@ def func_jE_YUK04(pars_prop, zeta_n, E, r, z):
     jE=fE*QE[:,jnp.newaxis,jnp.newaxis]*1.0e9/(3.086e18)**3 
 
     return jE # GeV^-1 cm^-2 s^-1
+
+# # Function to interpolate emissivity on healpix-r grid using JAX
+# @jit
+# def get_healpix_interp(qg, Eg, rg, zg, points_intr):
+#     # Grid on which emissivity is calculated
+#     points = (rg, zg)
+
+#     # Grid on which emissivity is interpolated
+#     N_rs, N_pix=points_intr[0].shape
+#     N_E = len(Eg)
+
+#     # Interpolator
+#     qg_healpix = jnp.zeros((N_E, N_rs, N_pix))
+#     for j in range(N_E):
+#         interpolator = jsp.interpolate.RegularGridInterpolator(points, qg[j, :, :], method='linear', bounds_error=False, fill_value=0.0)
+#         qg_healpix = qg_healpix.at[j, :, :].set(interpolator(points_intr))
+
+
+#     return qg_healpix
+
+# Function to interpolate emissivity on healpix-r grid using JAX
+@jit
+def interpolate_grid(qg_slice, points, points_intr):
+    interpolator=jsp.interpolate.RegularGridInterpolator(points,qg_slice,method='linear',bounds_error=False,fill_value=0.0)
+    return interpolator(points_intr)
+
+@jit
+def get_healpix_interp(qg, rg, zg, points_intr):
+    points = (rg, zg)
+
+    # Vectorize the interpolation across the energy levels
+    vectorized_interpolation=vmap(interpolate_grid,in_axes=(0,None,None),out_axes=0)
+
+    # Perform the vectorized interpolation
+    qg_healpix=vectorized_interpolation(qg,points,points_intr)
+
+    return qg_healpix
+
+# Differential cross-section for gamma-ray production
+def func_dXSdEg(E, Eg):
+# E (GeV) and Eg (GeV)
+
+    E=np.array(E)
+    Eg=np.array(Eg)
+
+    dXSdEg_Geant4=np.zeros((len(E),len(Eg))) 
+    for i in range(len(E)):
+        for j in range(len(Eg)):
+            dXSdEg_Geant4[i,j]=ppG.dsigma_dEgamma_Geant4(E[i],Eg[j])*1.0e-27 # cm^2/GeV
+    
+    return jnp.array(dXSdEg_Geant4)
+
+# Function to calculate the gamma-ray map
+@jit
+def func_gamma_map(ngas, qg_Geant4_healpixr, drs):
+    return jnp.sum(ngas[:,jnp.newaxis,:,:]*qg_Geant4_healpixr[jnp.newaxis,:,:,:]*drs[jnp.newaxis,jnp.newaxis,:,jnp.newaxis],axis=2) # GeV^-1 cm^-2 s^-1
