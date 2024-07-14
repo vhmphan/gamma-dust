@@ -82,18 +82,24 @@ def jcompute_coefficients(zeta_n, R):
 @jit
 def func_gSNR_fit(theta, zeta_n, R, r):
 
-    A, B, C=theta
-    r_int=jnp.linspace(0.0,R,200000)
-    fr_int=jnp.where(
-        r_int<15.0,
-        A*jnp.power((r_int+0.55)/9.05,B)*jnp.exp(-C*(r_int-8.5)/9.05),
+    A, B, C, D=theta
+    # r_int=jnp.linspace(0.0,R,200000)
+    # fr_int=jnp.where(
+    #     r_int<15.0,
+    #     A*jnp.power((r_int+B)/(8.178+B),C)*jnp.exp(-D*(r_int-8.5)/9.05),
+    #     0.0
+    # ) 
+    # j0_n=j0(zeta_n[:,jnp.newaxis]*r_int[jnp.newaxis,:]/R)
+    # coefficients=jnp.trapezoid(r_int[jnp.newaxis,:]*fr_int[jnp.newaxis,:]*j0_n,r_int)
+    # coefficients*=(2.0/(R**2*(j1(zeta_n)**2)))
+
+    # gSNR=jnp.sum(coefficients[:,jnp.newaxis]*j0(zeta_n[:,jnp.newaxis]*r[jnp.newaxis,:]/R),axis=0)
+
+    gSNR=jnp.where(
+        r<15.0,
+        A*jnp.power((r+B)/(8.178+B),C)*jnp.exp(-D*(r-8.178)/9.05),
         0.0
     ) 
-    j0_n=j0(zeta_n[:,jnp.newaxis]*r_int[jnp.newaxis,:]/R)
-    coefficients=jnp.trapezoid(r_int[jnp.newaxis,:]*fr_int[jnp.newaxis,:]*j0_n,r_int)
-    coefficients*=(2.0/(R**2*(j1(zeta_n)**2)))
-
-    gSNR=jnp.sum(coefficients[:,jnp.newaxis]*j0(zeta_n[:,jnp.newaxis]*r[jnp.newaxis,:]/R),axis=0)
 
     return gSNR
 
@@ -132,6 +138,65 @@ def func_jE_YUK04(pars_prop, zeta_n, E, r, z):
     fr_int=jnp.where(
         r_int<15.0,
         jnp.power((r_int+0.55)/9.05,1.64)*jnp.exp(-4.01*(r_int-8.5)/9.05)/5.95828e+8,
+        0.0
+    ) 
+    j0_n=j0(zeta_n[:,jnp.newaxis]*r_int[jnp.newaxis,:]*1.0e3/R)
+    q_n=jnp.trapezoid(r_int[jnp.newaxis,:]*fr_int[jnp.newaxis,:]*j0_n,r_int)
+    q_n*=1.0e6*(2.0/(R**2*(j1(zeta_n)**2))) # pc^-2
+
+    # Injection spectrum of sources
+    xmin=jnp.sqrt((1.0e8+mp)**2-mp**2)/mp
+    xmax=jnp.sqrt((1.0e14+mp)**2-mp**2)/mp
+    x=jnp.logspace(jnp.log10(xmin),jnp.log10(xmax),5000)
+    Gam=jnp.trapezoid(x**(2.0-alpha)*(jnp.sqrt(x**2+1.0)-1.0),x)
+    # print('hj',xmin)
+
+    RSNR=0.03 # yr^-1 -> SNR rate
+    ENSR=1.0e51*6.242e+11 # eV -> Average kinetic energy of SNRs
+    QE=(xiSNR*ENSR/(mp**2*vp*Gam))*(p/mp)**(2.0-alpha)
+    QE*=RSNR*vp*3.0e10
+
+    Diff=Diff[jnp.newaxis,:,jnp.newaxis,jnp.newaxis]
+    z=z[jnp.newaxis,jnp.newaxis,jnp.newaxis,:]
+    r=r[jnp.newaxis,jnp.newaxis,:,jnp.newaxis]
+    zeta_n=zeta_n[:,jnp.newaxis,jnp.newaxis,jnp.newaxis]
+    q_n=q_n[:,jnp.newaxis,jnp.newaxis,jnp.newaxis]
+
+    Sn=jnp.sqrt((u0/Diff)**2+4.0*(zeta_n/R)**2) # pc^-2
+    fEn=j0(zeta_n*r/R)*q_n*jnp.exp(u0*z/(2.0*Diff))*jnp.sinh(Sn*(L-z)/2.0)/(jnp.sinh(Sn*L/2.0)*(u0+Sn*Diff*(jnp.cosh(Sn*L/2.0)/jnp.sinh(Sn*L/2.0))))
+    fE=jnp.sum(fEn,axis=0) # eV^-1 pc^-3
+    fE=jnp.where(fE<0.0,0.0,fE)
+
+    jE=fE*QE[:,jnp.newaxis,jnp.newaxis]*1.0e9/(3.086e18)**3 
+
+    return jE # GeV^-1 cm^-2 s^-1
+
+# Function to compute cosmic-ray flux for the YUK04 distribution of sources
+@jit
+def func_jE_fit(theta, pars_prop, zeta_n, E, r, z):
+
+    mp=938.272e6 # eV
+    A, B, C, D=theta
+
+    # Transsport parameters
+    R=pars_prop[0] # pc
+    L=pars_prop[1] # pc
+    alpha=pars_prop[2] 
+    xiSNR=pars_prop[3]
+    u0=pars_prop[4]*365.0*86400.0/3.086e18 # km/s to pc/yr -> Advection speed
+
+    p=jnp.sqrt((E+mp)**2-mp**2)  # eV
+    vp=p/(E+mp)
+
+    # Diffusion coefficient
+    pb=312.0e9
+    Diff=1.1e28*(365.0*86400.0/(3.08567758e18)**2)*vp*(p/1.0e9)**0.63/(1.0+(p/pb)**2)**0.1 # pc^2/yr
+
+    # Spatial distribution of sources
+    r_int=jnp.linspace(0.0,R,200000)*1.0e-3
+    fr_int=jnp.where(
+        r_int<15.0,
+        A*jnp.power((r_int+B)/(8.178+B),C)*jnp.exp(-D*(r_int-8.178)/9.05),
         0.0
     ) 
     j0_n=j0(zeta_n[:,jnp.newaxis]*r_int[jnp.newaxis,:]*1.0e3/R)
@@ -259,7 +324,7 @@ def load_gas(path_to_gas):
 def func_gamma_map_fit(theta, pars_prop, zeta_n, dXSdEg_Geant4, ngas, drs, points_intr, E):
 # E (eV) and Eg (GeV)
 
-    A, B, C=theta
+    A, B, C, D=theta
 
     mp=938.272e6 # eV
 
@@ -283,7 +348,7 @@ def func_gamma_map_fit(theta, pars_prop, zeta_n, dXSdEg_Geant4, ngas, drs, point
     r_int=jnp.linspace(0.0,R,200000)*1.0e-3
     fr_int=jnp.where(
         r_int<15.0,
-        A*jnp.power((r_int+0.55)/9.05,B)*jnp.exp(-C*(r_int-8.5)/9.05),
+        A*jnp.power((r_int+B)/(8.178+B),C)*jnp.exp(-D*(r_int-8.178)/9.05),
         0.0
     ) 
     j0_n=j0(zeta_n[:,jnp.newaxis]*r_int[jnp.newaxis,:]*1.0e3/R)

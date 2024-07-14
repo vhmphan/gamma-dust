@@ -24,10 +24,41 @@ NH2map=np.sum(samples_H2*dr[np.newaxis,:,np.newaxis],axis=1)
 N_sample, N_pix=NHImap.shape
 print(samples_HI.shape)
 
+# import h5py
+
+# # Open the HDF5 file
+# with h5py.File('JCR/energy_bins.hdf5', 'r') as file:
+#     print("Keys: %s" % file.keys())
+#     Eg_data=file['geom_avg_bin_energy'][:]
+#     Eg_data_lower=file['lower_bin_boundaries'][:]
+#     Eg_data_upper=file['upper_bin_boundaries'][:]
+    
+# dEg_data=Eg_data_upper-Eg_data_lower
+
+# with h5py.File('JCR/I_dust.hdf5', 'r') as file:
+#     print("Keys: %s" % file.keys())
+#     gamma_map_data=file['stats']['mean'][:]
+
+# gamma_map_data*=1.0e-4*4.0*np.pi/dEg_data[:,np.newaxis]
+# gamma_map_data=hp.ud_grade(gamma_map_data[5,:], nside_out=64)
+# gamma_map_data=hp.reorder(gamma_map_data, r2n=True)
+
+# emi_map=gamma_map_data/(np.mean(NHImap+2.0*NH2map,axis=0)*4.0*np.pi)
+# print(emi_map.shape)
+
+# l, b=hp.pixelfunc.pix2ang(64, np.arange(12*64*64), lonlat=True, nest=True)
+# l=np.where(l<0,l+360,l)
+
+# mask=(np.abs(b)<=8.0) 
+# emi_map[mask]=np.nan
+
+# print(np.nanmean(emi_map))
+
 fig=plt.figure(figsize=(12, 5))
 
 projview(
     np.log10(np.mean(NHImap,axis=0)), 
+    # np.log10(emi_map), 
     title=r'Mean HI',
     coord=["G"], cmap='viridis',
     min=20, max=23,
