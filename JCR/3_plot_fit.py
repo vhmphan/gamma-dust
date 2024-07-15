@@ -94,7 +94,7 @@ def plot_gamma_map(i, gamma_map_theta, gamma_map):
     fig.tight_layout(pad=1.0)
     fig.subplots_adjust(hspace=0.05, wspace=0.15, top=1.1, bottom=0.1, left=0.05, right=0.95)
 
-    plt.savefig('fg_gamma-map_FERMI5_%d.png' % i, dpi=300)
+    plt.savefig('fg_gamma-map_FERMItest_%d.png' % i, dpi=300)
     plt.close()
 
 fs=22
@@ -123,7 +123,6 @@ pars_prop=jnp.array([R, L, alpha, xiSNR, u0])
 
 # Define cosmic-ray and gamma-ray energy grids and compute the cross-section from Kafexhiu's code (numpy does not work)
 E=jnp.logspace(10.0,14.0,81) # eV 
-# Eg=jnp.logspace(1,2,2) # GeV
 Eg=jnp.logspace(np.log10(13.33521432163324),2,1) # GeV
 dXSdEg_Geant4=jCR.func_dXSdEg(E*1.0e-9,Eg)
 
@@ -131,42 +130,43 @@ dXSdEg_Geant4=jCR.func_dXSdEg(E*1.0e-9,Eg)
 ngas, drs, points_intr=jCR.load_gas('../samples_densities_hpixr.fits')
 ngas_mean=jnp.mean(ngas,axis=0)[jnp.newaxis,:,:]
 
-# # Load data of gamma-ray map
-# data=np.load('gamma_map.npz')
-# gamma_map_mean=jnp.array(data['gamma_map'])
+# Load parameter scan
+data=np.loadtxt('scan_pars.txt')
+chi2=data[:,0]
+theta=data[:,1:]
+print(theta[0,:])
+print(theta[chi2==np.min(chi2),:])
 
-N=501
-
-scan_pars=[]
-theta=jnp.array([1.6e-9,0.6,1.6,4.0])
-theta_min=jnp.array([0.5e-9,0.1,1.0,2.5])
-theta_max=jnp.array([5.0e-9,4.0,2.0,4.5])
-
-grad_init=jnp.abs(grad(jCR.loss_func_gamma_map)(theta,pars_prop,zeta_n,dXSdEg_Geant4,ngas,drs,points_intr,E,gamma_map_mean,gamma_map_std))
-print('Initial gradient -> ', grad_init)
-
-learning_rate=0.01*theta*(grad_init/(grad_init+1.0e-8))
-optimizer=optax.adam(learning_rate)
-opt_state=optimizer.init(theta)
-
-@jit
-def update_gamma_map(theta, opt_state, pars_prop, zeta_n, dXSdEg_Geant4, ngas, drs, points_intr, E, gamma_map_data, gamma_map_std):
-    grads=grad(jCR.loss_func_gamma_map)(theta,pars_prop,zeta_n,dXSdEg_Geant4,ngas,drs,points_intr,E,gamma_map_data,gamma_map_std)
-    updates, opt_state=optimizer.update(grads,opt_state)
-    theta=optax.apply_updates(theta,updates)
-    return theta, opt_state
-
+# Define 
+N=len(chi2)
 color=cm.magma(np.linspace(0, 1, N))
 
+r_data=jnp.linspace(0,12,100)
+gSNR_data=jCR.func_gSNR_YUK04(r_data*1.0e3)
+
+fig=plt.figure(figsize=(10, 8))
+ax=plt.subplot(111)
+
+ax.plot(r_data,gSNR_data,label='Yusifov et al. 2004',lw=2)
+
 for i in range(N):
-    theta, opt_state=update_gamma_map(theta,opt_state,pars_prop,zeta_n,dXSdEg_Geant4,ngas,drs,points_intr,E,gamma_map_mean,gamma_map_std)
-    theta=jnp.clip(theta, theta_min, theta_max)
-    current_loss=jCR.loss_func_gamma_map(theta,pars_prop,zeta_n,dXSdEg_Geant4,ngas,drs,points_intr,E,gamma_map_mean,gamma_map_std)
-    scan_pars.append(np.concatenate([[current_loss], np.array(theta)]))
+    if((i%50==0)):
+        gamma_map_theta=jCR.func_gamma_map_fit(jnp.array(theta[i,:]),pars_prop,zeta_n,dXSdEg_Geant4,ngas_mean,drs,points_intr,E)
+        plot_gamma_map(i,gamma_map_theta,gamma_map_mean)
+        print('i=%d -> A_fit=' %i,theta[i][0],'B_fit=',theta[i][1],'C_fit=',theta[i][2],'D_fit=',theta[i][3])
+        ax.plot(r_data, jCR.func_gSNR_fit(theta[i,:],zeta_n,R*1.0e-3,r_data), linestyle='--', color=color[i])
 
 print('A_org=',1.0/5.95828e+8,'B_org=',0.55,'C_org=',1.64,'D_org=',4.01)
 
-np.savetxt("scan_pars.txt", np.array(scan_pars), header="chi2 norm r_off index exp_arg_norm")
+ax.set_xlabel(r'$r\, ({\rm kpc})$',fontsize=fs)
+ax.set_ylabel(r'$g_{\rm SNR}(r)\,({\rm pc^{-2}})$', fontsize=fs)
+for label_ax in (ax.get_xticklabels() + ax.get_yticklabels()):
+    label_ax.set_fontsize(fs)
+ax.legend(loc='upper right', prop={"size":fs})
+ax.grid(linestyle='--')
 
-print('Runtime:',time.time()-start_time,'seconds')
+plt.savefig('fg_gSNR_gamma_FERMI_test.png')
+plt.close()
 
+Rsol=8178.0
+fCR.plot_jEp_LOC(theta[np.argmin(chi2),:],pars_prop,zeta_n,Rsol)

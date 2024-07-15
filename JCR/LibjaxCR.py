@@ -230,25 +230,6 @@ def func_jE_fit(theta, pars_prop, zeta_n, E, r, z):
 
     return jE # GeV^-1 cm^-2 s^-1
 
-# # Function to interpolate emissivity on healpix-r grid using JAX
-# @jit
-# def get_healpix_interp(qg, Eg, rg, zg, points_intr):
-#     # Grid on which emissivity is calculated
-#     points = (rg, zg)
-
-#     # Grid on which emissivity is interpolated
-#     N_rs, N_pix=points_intr[0].shape
-#     N_E = len(Eg)
-
-#     # Interpolator
-#     qg_healpix = jnp.zeros((N_E, N_rs, N_pix))
-#     for j in range(N_E):
-#         interpolator = jsp.interpolate.RegularGridInterpolator(points, qg[j, :, :], method='linear', bounds_error=False, fill_value=0.0)
-#         qg_healpix = qg_healpix.at[j, :, :].set(interpolator(points_intr))
-
-
-#     return qg_healpix
-
 # Function to interpolate emissivity on healpix-r grid using JAX
 @jit
 def interpolate_grid(qg_slice, points, points_intr):
@@ -391,11 +372,11 @@ def func_gamma_map_fit(theta, pars_prop, zeta_n, dXSdEg_Geant4, ngas, drs, point
     return gamma_map
 
 @jit
-def loss_func_gamma_map(theta, pars_prop, zeta_n, dXSdEg_Geant4, ngas, drs, points_intr, E, gamma_map_data):
+def loss_func_gamma_map(theta, pars_prop, zeta_n, dXSdEg_Geant4, ngas, drs, points_intr, E, gamma_map_data, gamma_map_std):
     gamma_map_fit=func_gamma_map_fit(theta,pars_prop,zeta_n,dXSdEg_Geant4,ngas,drs,points_intr,E)
 
-    return jnp.mean((gamma_map_fit-gamma_map_data)**2)
+    return jnp.mean((gamma_map_fit-gamma_map_data)**2/(gamma_map_std)**2)
 
-@jit
-def update_gamma_map(theta, pars_prop, zeta_n, dXSdEg_Geant4, ngas, drs, points_intr, E, gamma_map_data, lr):
-    return theta-lr*grad(loss_func_gamma_map)(theta,pars_prop,zeta_n,dXSdEg_Geant4,ngas,drs,points_intr,E,gamma_map_data)
+# @jit
+# def update_gamma_map(theta, pars_prop, zeta_n, dXSdEg_Geant4, ngas, drs, points_intr, E, gamma_map_data, lr):
+#     return theta-lr*grad(loss_func_gamma_map)(theta,pars_prop,zeta_n,dXSdEg_Geant4,ngas,drs,points_intr,E,gamma_map_data)
