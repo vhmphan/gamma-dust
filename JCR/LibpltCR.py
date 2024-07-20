@@ -66,6 +66,7 @@ def plot_jEp_LOC(theta, pars_prop, zeta_n, Rsol):
     n=2
 
     ax.plot(E,E**n*jE_loc,'k-',linewidth=3,label=r'${\rm Local\, Spectrum}$')
+    ax.plot(E,E**n*jE_loc/1.3,'r-',linewidth=3,label=r'${\rm Local\, Spectrum}$')
 
     # Read data of CRDB file
     # AMS data

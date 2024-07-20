@@ -61,11 +61,32 @@ def func_gSNR_YUK04(r):
 
     r=jnp.array(r)*1.0e-3 # kpc
     gSNR=jnp.where(
-        r<15.0,
+        r<=15.0,
         jnp.power((r+0.55)/9.05,1.64)*jnp.exp(-4.01*(r-8.5)/9.05)/5.95828e+8,
         0.0
     )    
     return gSNR # pc^-2
+
+@jit
+def func_gSNR_CAB98(r):
+    # Constants
+    A = 1.96
+    rG0_SNR = 17.2
+    theta0 = 0.08
+    B = 0.13
+
+    r=jnp.array(r)*1.0e-3 # kpc
+    gSNR=jnp.where(
+        r<16.8,
+        jnp.sin((jnp.pi*r/rG0_SNR)+theta0)*jnp.exp(-B*r),
+        0.0
+    )  
+
+    # Normalize
+    gSNR=gSNR/335.42271571658637e6
+
+    return gSNR # pc^-2
+
 
 # Some functions to test jax on finding best fit with gradient descent
 @jit
@@ -258,7 +279,7 @@ def func_dXSdEg(E, Eg):
     dXSdEg_Geant4=np.zeros((len(E),len(Eg))) 
     for i in range(len(E)):
         for j in range(len(Eg)):
-            dXSdEg_Geant4[i,j]=ppG.dsigma_dEgamma_Geant4(E[i],Eg[j])*1.0e-27
+            dXSdEg_Geant4[i,j]=ppG.dsigma_dEgamma_QGSJET(E[i],Eg[j])*1.0e-27
     
     return jnp.array(dXSdEg_Geant4) #  # cm^2 GeV^-1
 
@@ -280,7 +301,7 @@ def load_gas(path_to_gas):
     samples_HI=(hdul[3].data).T # cm^-3
     samples_H2=(hdul[4].data).T # cm^-3
     hdul.close()
-    ngas=2.0*samples_H2+samples_HI # cm^-3
+    ngas=2.0*1.15*samples_H2+samples_HI # cm^-3 -> Multiply 1.15 for higher CO to H2 conversion factor
 
     N_sample, N_rs, N_pix=samples_HI.shape
     NSIDE=int(np.sqrt(N_pix/12))
@@ -361,7 +382,7 @@ def func_gamma_map_fit(theta, pars_prop, zeta_n, dXSdEg_Geant4, ngas, drs, point
     jE=fE*QE[:,jnp.newaxis,jnp.newaxis]*1.0e9/(3.086e18)**3 # GeV^-1 cm^-2 s^-1
 
     # Compute gamma-ray emissivity with cross section from Kafexhiu et al. 2014 (note that 1.8 is the enhancement factor due to nuclei)
-    qg_Geant4=1.8*jnp.trapezoid(jE[:,jnp.newaxis,:,:]*dXSdEg_Geant4[:,:,jnp.newaxis,jnp.newaxis], E*1.0e-9, axis=0) # GeV^-1 s^-1 
+    qg_Geant4=1.88*jnp.trapezoid(jE[:,jnp.newaxis,:,:]*dXSdEg_Geant4[:,:,jnp.newaxis,jnp.newaxis], E*1.0e-9, axis=0) # GeV^-1 s^-1 -> Enhancement factor 1.88 from Kachelriess et al. 2014
 
     # Interpolate gamma-ray emissivity on healpix-r grid as gas
     qg_Geant4_healpixr=get_healpix_interp(qg_Geant4,rg,zg,points_intr) # GeV^-1 s^-1 -> Interpolate gamma-ray emissivity

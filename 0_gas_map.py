@@ -14,6 +14,7 @@ print(hdul.info())
 # Access data 
 r=(hdul[2].data)['radial pixel edges'].astype(np.float64) # Edges of radial bins
 dr=np.diff(r)*3.086e21 # cm -> Bin width for the integration along the line of sight
+r_center=(hdul[1].data)['radial pixel centres'].astype(np.float64) # Edges of radial bins
 samples_HI=(hdul[3].data).T # cm^-3
 samples_H2=(hdul[4].data).T # cm^-3
 hdul.close()
@@ -130,3 +131,87 @@ plt.close()
 #     plt.savefig('fg_gas_sample_%d.png' % (isample), dpi=150)
 #     plt.close()
 
+import healpy as hp
+import numpy as np
+import matplotlib.pyplot as plt
+import scipy as sp
+
+# Load or create a HEALPix map (for example, using a random map here)
+nside=64
+npix=hp.nside2npix(nside)
+
+# Define the Cartesian grid
+nlon, nlat=720, 360  # Resolution of the Cartesian grid
+lon=np.linspace(-180,180,nlon)  # Longitude from -180 to 180 degrees
+lat=np.linspace(-90,90,nlat)  # Latitude from -90 to 90 degrees
+lon_grid, lat_grid=np.meshgrid(lon,lat)
+
+# Convert Cartesian coordinates to theta and phi
+theta=np.radians(90-lat_grid)  # Co-latitude in radians
+phi=np.radians(lon_grid)  # Longitude in radians
+
+# Get HEALPix pixel indices for each (theta, phi)
+healpix_indices=hp.ang2pix(nside, theta, phi, nest=True)
+
+# Create the new Cartesian skymap
+NHImap_cart=NHImap[:,healpix_indices][:,:,::-1]
+NH2map_cart=NH2map[:,healpix_indices][:,:,::-1]
+# print(NHImap_cart.shape)
+# samples_HI_cart=samples_HI[:,:,healpix_indices][:,:,:,::-1]
+# print(samples_HI_cart.shape)
+# NHImap_cart_test=np.sum(samples_HI_cart*dr[np.newaxis,:,np.newaxis,np.newaxis],axis=1)
+
+
+# def interpolate_maps(r_values, maps, r_target):
+#     # Create an interpolator for each point in the map
+#     interpolator = sp.interpolate.interp1d(r_values, maps, axis=1, kind='linear', fill_value='extrapolate')
+#     # Get the interpolated map at the desired r value
+#     interpolated_map = interpolator(r_target)
+#     return interpolated_map
+
+# Nr=280*2
+# r_interp=np.linspace(0.05,28.05,Nr)
+# samples_HI_cart_intr=interpolate_maps(r_center,samples_HI_cart,r_interp)
+
+# dr_interp=np.append(np.diff(r_interp), 0.0)*3.086e21
+# NHImap_cart_intr=np.sum(samples_HI_cart_intr*dr_interp[np.newaxis,:,np.newaxis,np.newaxis],axis=1)
+
+# # Plot the Cartesian map
+# plt.imshow(np.abs(np.log10(NHImap_cart[0,:,:]/NHImap_cart_intr[0,:,:])), extent=(-180, 180, -90, 90), cmap='magma', origin='lower')
+# # plt.imshow(np.abs(np.log10(NHImap_cart_test[0,:,:])), extent=(-180, 180, -90, 90), cmap='magma', origin='lower')
+# plt.colorbar(label='Intensity')
+# plt.xlabel('Longitude')
+# plt.ylabel('Latitude')
+# plt.title('Cartesian Skymap')
+# plt.savefig('cartesian_projection_inter.png')
+
+
+# hp.visufunc.cartview(np.log10(NHImap[0,:]), coord='G', title='Cartesian Projection', cmap='Blues', min=19.5, max=22.5, nest=True, notext=False)
+
+# # Add coordinate grid and labels
+# hp.graticule(verbose=True)
+
+# # Save the figure if needed
+# plt.savefig('cartesian_projection.png')
+
+hdul=fits.open('CO_2D_map_all_sky_smooth.fit')
+print(hdul[0].data.shape)
+
+# Plot the Cartesian map
+plt.imshow(np.abs(np.log10(hdul[0].data)), extent=(-180, 180, -30, 30), cmap='magma', origin='lower')
+# plt.imshow(np.abs(np.log10(NHImap_cart_test[0,:,:])), extent=(-180, 180, -90, 90), cmap='magma', origin='lower')
+plt.colorbar(label='Intensity')
+plt.xlabel('Longitude')
+plt.ylabel('Latitude')
+plt.title('Cartesian Skymap')
+plt.ylim(-30,30)
+plt.savefig('cartesian_projection_CO.png')
+
+plt.imshow(np.abs(np.log10(np.mean(NH2map_cart,axis=0))), extent=(-180, 180, -90, 90), cmap='magma', origin='lower')
+# plt.imshow(np.abs(np.log10(NHImap_cart_test[0,:,:])), extent=(-180, 180, -90, 90), cmap='magma', origin='lower')
+plt.colorbar(label='Intensity')
+plt.xlabel('Longitude')
+plt.ylabel('Latitude')
+plt.title('Cartesian Skymap')
+plt.ylim(-30,30)
+plt.savefig('cartesian_projection_.png')

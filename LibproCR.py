@@ -144,14 +144,14 @@ def plot_jEp_LOC(pars_prop, zeta_n, q_n, Rsol):
     fs=22
 
     E=np.logspace(8.0,14.0,61)
-    jE_loc=func_jE(pars_prop,zeta_n,q_n,E,np.array([Rsol]),np.array([0.0]))[:,0,0]/(4.0*np.pi)
+    jE_loc=func_jE(pars_prop,zeta_n,q_n,E,np.array([Rsol]),np.array([0.0]))[:,0,0]
 
     fig=plt.figure(figsize=(10, 8))
     ax=plt.subplot(111)
 
     n=2
 
-    ax.plot(E,E**n*jE_loc/(4.0*np.pi),'k-',linewidth=3,label=r'${\rm Local\, Spectrum}$')
+    ax.plot(E,1.0e-9*E**n*jE_loc/(4.0*np.pi),'k-',linewidth=3,label=r'${\rm Local\, Spectrum}$')
 
     # Read data of CRDB file
     # AMS data
@@ -189,7 +189,7 @@ def plot_jEp_LOC(pars_prop, zeta_n, q_n, Rsol):
     ax.set_xscale('log')
     ax.set_yscale('log')
     ax.set_xlabel(r'$E \,{\rm (eV)}$',fontsize=fs)
-    ax.set_ylabel(r'$j(E)\, {\rm (eV\,cm^{-2}\, s^{-1}\, sr^{-1})}$',fontsize=fs)
+    ax.set_ylabel(r'$E^2\,j(E)\, {\rm (eV\,cm^{-2}\, s^{-1}\, sr^{-1})}$',fontsize=fs)
     for label_ax in (ax.get_xticklabels() + ax.get_yticklabels()):
         label_ax.set_fontsize(fs)
     ax.set_xlim(E[0],E[-1])
