@@ -229,7 +229,6 @@ def func_jE_fit(theta, pars_prop, zeta_n, E, r, z):
     xmax=jnp.sqrt((1.0e14+mp)**2-mp**2)/mp
     x=jnp.logspace(jnp.log10(xmin),jnp.log10(xmax),5000)
     Gam=jnp.trapezoid(x**(2.0-alpha)*(jnp.sqrt(x**2+1.0)-1.0),x)
-    # print('hj',xmin)
 
     RSNR=0.03 # yr^-1 -> SNR rate
     ENSR=1.0e51*6.242e+11 # eV -> Average kinetic energy of SNRs
@@ -362,8 +361,17 @@ def load_gas(path_to_gas):
     hdul.close()
     ngas=2.0*1.15*samples_H2+samples_HI # cm^-3 -> Multiply 1.15 for higher CO to H2 conversion factor
 
-    N_sample, N_rs, N_pix=samples_HI.shape
+    N_sample, N_rs, N_pix=ngas.shape
+    N_pix=12*16*16
     NSIDE=int(np.sqrt(N_pix/12))
+
+    ngas_new=np.zeros((N_sample, N_rs, N_pix))
+    for i in range(N_sample):
+        for j in range(N_rs):
+            ngas_new[i, j, :] = hp.ud_grade(ngas[i, j, :], nside_out=NSIDE)
+
+    # NSIDE=int(np.sqrt(N_pix_new/12))
+    # NSIDE=int(np.sqrt(N_pix/12))
 
     # Angles for all pixels
     thetas, phis=hp.pix2ang(NSIDE,jnp.arange(N_pix),nest=True,lonlat=False)
@@ -379,7 +387,8 @@ def load_gas(path_to_gas):
 
     points_intr=(jnp.sqrt(xs**2+ys**2),jnp.abs(zs))
 
-    return jnp.array(ngas), jnp.array(drs), points_intr
+    # return jnp.array(ngas), jnp.array(drs), points_intr
+    return jnp.array(ngas_new), jnp.array(drs), points_intr
 
 @jit
 def func_gamma_map_fit(theta, pars_prop, zeta_n, dXSdEg_Geant4, ngas, drs, points_intr, E):
