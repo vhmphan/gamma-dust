@@ -251,23 +251,80 @@ def func_jE_fit(theta, pars_prop, zeta_n, E, r, z):
 
     return jE # GeV^-1 cm^-2 s^-1
 
-# Function to interpolate emissivity on healpix-r grid using JAX
+# # Function to interpolate emissivity on healpix-r grid using JAX
+# @jit
+# def interpolate_grid(qg_slice, points, points_intr):
+#     interpolator=jsp.interpolate.RegularGridInterpolator(points,qg_slice,method='linear',bounds_error=False,fill_value=0.0)
+#     return interpolator(points_intr)
+
+# @jit
+# def get_healpix_interp(qg, rg, zg, points_intr):
+#     points = (rg, zg)
+
+#     # Vectorize the interpolation across the energy levels
+#     vectorized_interpolation=vmap(interpolate_grid,in_axes=(0,None,None),out_axes=0)
+
+#     # Perform the vectorized interpolation
+#     qg_healpix=vectorized_interpolation(qg,points,points_intr)
+
+#     return qg_healpix
+
+def bilinear_interpolate(image, x, y):
+
+    Nx, Ny = image.shape
+    
+    x0 = jnp.floor(x).astype(jnp.int32)
+    x1 = x0 + 1
+    y0 = jnp.floor(y).astype(jnp.int32)
+    y1 = y0 + 1
+    x0 = jnp.clip(x0, 0, Nx - 1)
+    x1 = jnp.clip(x1, 0, Nx - 1)
+    y0 = jnp.clip(y0, 0, Ny - 1)
+    y1 = jnp.clip(y1, 0, Ny - 1)
+    
+    Ia = image[x0, y0]
+    Ib = image[x0, y1]
+    Ic = image[x1, y0]
+    Id = image[x1, y1]
+    wa = (x1 - x) * (y1 - y)
+    wb = (x1 - x) * (y - y0)
+    wc = (x - x0) * (y1 - y)
+    wd = (x - x0) * (y - y0)
+
+    return wa * Ia + wb * Ib + wc * Ic + wd * Id
+
 @jit
-def interpolate_grid(qg_slice, points, points_intr):
-    interpolator=jsp.interpolate.RegularGridInterpolator(points,qg_slice,method='linear',bounds_error=False,fill_value=0.0)
-    return interpolator(points_intr)
+def interpolate_2d(qg, r, z, r1, z1):
+    # Normalize r1 and z1 to the index space of qg
+    r_min, r_max = jnp.min(r), jnp.max(r)
+    z_min, z_max = jnp.min(z), jnp.max(z)
+    r1_normalized = (r1 - r_min) / (r_max - r_min) * (qg.shape[0] - 1)
+    z1_normalized = (z1 - z_min) / (z_max - z_min) * (qg.shape[1] - 1)
+
+    # Check for out-of-bounds points and set them to 0
+    out_of_bounds = (r1 > r_max) | (z1 > z_max) | (r1 < r_min) | (z1 < z_min)
+    
+    # Interpolate only in-bounds points
+    interpolated_values = bilinear_interpolate(qg, r1_normalized, z1_normalized)
+
+    # Set out-of-bounds values to 0
+    interpolated_values = jnp.where(out_of_bounds, 0.0, interpolated_values)
+
+    return interpolated_values
 
 @jit
 def get_healpix_interp(qg, rg, zg, points_intr):
-    points = (rg, zg)
 
-    # Vectorize the interpolation across the energy levels
-    vectorized_interpolation=vmap(interpolate_grid,in_axes=(0,None,None),out_axes=0)
+    N_rs, N_pix = points_intr[0].shape
+    N_E, _, _ = qg.shape 
+    qg_healpixr = jnp.zeros((N_E, N_rs, N_pix))
 
-    # Perform the vectorized interpolation
-    qg_healpix=vectorized_interpolation(qg,points,points_intr)
+    for j in range(N_E):
+        interpolated_values = interpolate_2d(qg[j, :, :], rg, zg, points_intr[0].ravel(), points_intr[1].ravel())
+        qg_healpixr = qg_healpixr.at[j, :, :].set(interpolated_values.reshape(N_rs, N_pix))
 
-    return qg_healpix
+    return qg_healpixr
+
 
 # Differential cross-section for gamma-ray production
 def func_dXSdEg(E, Eg):

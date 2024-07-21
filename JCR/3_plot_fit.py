@@ -95,7 +95,7 @@ def plot_gamma_map(i, gamma_map_theta, gamma_map):
     fig.subplots_adjust(hspace=0.05, wspace=0.15, top=1.1, bottom=0.1, left=0.05, right=0.95)
 
     # plt.savefig('fg_gamma-map_FERMIQGSJET_%d.png' % i, dpi=300)
-    plt.savefig('fg_gamma-map_FERMIQGSJET_bestfit.png', dpi=300)
+    plt.savefig('fg_gamma-map_FERMIQGSJET_bestfit_1.png', dpi=300)
     plt.close()
 
 fs=22
@@ -176,7 +176,7 @@ ax.set_xticks([0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
 # ax.set_xlim(0,20)
 # ax.set_ylim(0.0,5.0e-9)
 
-plt.savefig('fg_gSNR_gamma_FERMI_QGSJET.png')
+plt.savefig('fg_gSNR_gamma_FERMI_QGSJET_1.png')
 plt.close()
 
 Rsol=8178.0

@@ -13,6 +13,7 @@ mpl.rc("text",usetex=True)
 
 import jax.random as jr
 from jax import numpy as jnp
+import jax.scipy as jsp
 
 import LibjaxCR as jCR
 
@@ -177,9 +178,17 @@ class Signal(jft.Model):
 
         # Interpolate gamma-ray emissivity on healpix-r grid as gas
         qg_Geant4_healpixr=jCR.get_healpix_interp(qg_Geant4,rg,zg,points_intr) # GeV^-1 s^-1 -> Interpolate gamma-ray emissivity
+        # points = (rg, zg)
+        # N_rs, N_pix=points_intr[0].shape
+        # N_E, _, _ = qg_Geant4.shape 
+        # qg_Geant4_healpixr = jnp.zeros((N_E, N_rs, N_pix))
+        # for j in range(N_E):
+        #     interpolator = jsp.interpolate.RegularGridInterpolator(points, qg_Geant4[j, :, :], method='linear', bounds_error=False, fill_value=0.0)
+        #     qg_Geant4_healpixr = qg_Geant4_healpixr.at[j, :, :].set(interpolator(points_intr))
 
         # Compute the diffuse emission in all gas samples
         gamma_map=jCR.func_gamma_map(ngas_mean,qg_Geant4_healpixr,drs) # GeV^-1 cm^-2 s^-1
+        # gamma_map=jnp.sum(ngas_mean[:,jnp.newaxis,:,:]*qg_Geant4_healpixr[jnp.newaxis,:,:,:]*drs[jnp.newaxis,jnp.newaxis,:,jnp.newaxis],axis=2) # GeV^-1 cm^-2 s^-1
 
         return gamma_map
 
