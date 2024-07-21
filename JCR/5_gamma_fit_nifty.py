@@ -90,7 +90,7 @@ dims = (300, ) # Number of spatial grid points in the reconstructed gSNR
 cf_zm = dict(offset_mean=0.0, offset_std=(1e-3, 1e-4))
 cf_fl = dict(
     fluctuations=(1e-1, 5e-3),
-    loglogavgslope=(-6, 1e-2),
+    loglogavgslope=(-5, 1e-2),
     flexibility=(1e0, 5e-1),
     asperity=(5e-1, 5e-2),
 )
@@ -183,8 +183,10 @@ class Signal(jft.Model):
         # N_E, _, _ = qg_Geant4.shape 
         # qg_Geant4_healpixr = jnp.zeros((N_E, N_rs, N_pix))
         # for j in range(N_E):
-        #     interpolator = jsp.interpolate.RegularGridInterpolator(points, qg_Geant4[j, :, :], method='linear', bounds_error=False, fill_value=0.0)
-        #     qg_Geant4_healpixr = qg_Geant4_healpixr.at[j, :, :].set(interpolator(points_intr))
+        #     interpolated_values = jCR.interpolate_2d(qg_Geant4[j, :, :], rg, zg, points_intr[0].ravel(), points_intr[1].ravel())
+        #     qg_Geant4_healpixr = qg_Geant4_healpixr.at[j, :, :].set(interpolated_values.reshape(N_rs, N_pix))
+            # interpolator = jsp.interpolate.RegularGridInterpolator(points, qg_Geant4[j, :, :], method='linear', bounds_error=False, fill_value=0.0)
+            # qg_Geant4_healpixr = qg_Geant4_healpixr.at[j, :, :].set(interpolator(points_intr))
 
         # Compute the diffuse emission in all gas samples
         gamma_map=jCR.func_gamma_map(ngas_mean,qg_Geant4_healpixr,drs) # GeV^-1 cm^-2 s^-1
@@ -198,12 +200,72 @@ class Signal(jft.Model):
         # Note, `scaling` here is completely degenarate with `offset_std` in the
         # likelihood but the priors for them are very different.
         # return self.func_gSNR(x)[::int(dims[0]/Ndata)]
-        return self.func_gamma_map(x)
+        return self.func_gamma_map(x)[0,0,:]
 
 signal_response = Signal(correlated_field, scaling)
 
+# # Create synthetic data
+# mymap=np.zeros((5,1,1,12*64*64))
+# for i in range(5):
+#     key, subkey = jr.split(key)
+#     pos_truth = jft.random_like(subkey, signal_response.domain)
+#     mymap[i,:,:,:] = signal_response(pos_truth)
+
+# mymap_mean=np.mean(mymap, axis=0)
+# deviations = mymap - mymap_mean[np.newaxis,:,:,:]
+
+# # Compute the covariance matrix
+# cov_matrix = np.cov(deviations, rowvar=False)
+# print(cov_matrix.shape)
+
+key, subkey = jr.split(key)
+pos_truth = jft.random_like(subkey, signal_response.domain)
+signal_response_truth=signal_response(pos_truth)
+
+# from healpy.newvisufunc import projview, newprojplot
+
+# fig=plt.figure(figsize=(18, 5))
+
+# projview(
+#     np.log10(signal_response_truth[0,0,:]), 
+#     title=r'Iteration gamma-ray map at $E_\gamma=10$ GeV',
+#     coord=["G"], cmap='magma',
+#     # min=-8.5, max=-4.5,
+#     cbar_ticks=[-8.5, -6.5, -4.5],
+#     nest=True, 
+#     unit=r'$\log_{10}\phi_{\rm fit}(E_\gamma)\, [{\rm GeV}^{-1}\, {\rm cm}^{-2}\, {\rm s}^{-2}]$',
+#     graticule=True, graticule_labels=True, 
+#     # xlabel=r'longitude (deg)',
+#     # ylabel=r'latitude (deg)',
+#     projection_type="mollweide",
+#     sub=131
+# )
+
+# plt.savefig('Results_nifty/fg_gamma-map_nifty_1.png', dpi=300)
+# plt.close()
+
+# # Plotting gSNR and power spectrum
+# fig, ax = plt.subplots(1, 1, figsize=(12, 6))
+
+# # # Plot mock data
+# # ax[0].plot(rG_data, data, c='C5', alpha=1.0, label='Case 1998')
+
+# # Plot samples and mean 
+# rG=jnp.linspace(0,R_SN,dims[0])
+# ax.plot(rG, signal_response.func_gSNR(pos_truth), c='C3', alpha=1)
+# ax.plot(rG, jCR.func_gSNR_YUK04(rG), c='C4', alpha=1)
+
+# # # Plot Bessel expansion version
+# # ax[0].plot(rG,gSNR, 'k--')
+
+# # ax[0].set_ylabel(r'$g_{\rm SNR}\, {\rm (pc^{-2})}$')
+# # ax[0].set_xlabel(r'$R\, {\rm (pc)}$')
+
+# fig.tight_layout()
+# fig.savefig("Results_nifty/results_gSNR_1.png", dpi=400)
+
 # This defines the Likelihood in Bayes' law. "Amend" glues your forward model to the input
-lh = jft.Gaussian(gamma_map_mean, noise_cov_inv=1.0/gamma_map_std**2).amend(signal_response)
+lh = jft.Gaussian(signal_response_truth, noise_cov_inv=1.0/((0.1*signal_response_truth)**2)).amend(signal_response)
 
 # Now lets run the main inference scheme:
 n_vi_iterations = 1

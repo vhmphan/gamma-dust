@@ -323,6 +323,8 @@ def get_healpix_interp(qg, rg, zg, points_intr):
         interpolated_values = interpolate_2d(qg[j, :, :], rg, zg, points_intr[0].ravel(), points_intr[1].ravel())
         qg_healpixr = qg_healpixr.at[j, :, :].set(interpolated_values.reshape(N_rs, N_pix))
 
+    # qg_healpixr = vmap(interpolate_2d, in_axes=(0, None, None, None, None))(qg, rg, zg, points_intr[0].ravel(), points_intr[1].ravel())
+
     return qg_healpixr
 
 
