@@ -27,6 +27,9 @@ The injection spectrum $Q(E)$ is a power-law in momentum and the diffusion coeff
 R=20000.0 # pc -> Radius of halo
 L=4000.0  # pc -> Height of halo
 
+# Earth's location
+Rsol=8178.0 # pc 
+
 # Parameters for injection spectrum
 alpha=4.23  # -> Injection spectral index
 xiSNR=0.065 # -> Fracion of SNR kinetic energy into CRs
