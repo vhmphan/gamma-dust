@@ -25,38 +25,94 @@ import h5py
 import numpy as np
 import time
 
+from healpy.newvisufunc import projview, newprojplot
+
 start_time = time.time()
 
 mp = 938.272e6 # eV -> Proton mass
 
-# # Load diffuse gamma-ray map from Platz et al. 2023
-# with h5py.File('energy_bins.hdf5', 'r') as file:
-#     print("Keys: %s" % file.keys())
-#     Eg_data=file['geom_avg_bin_energy'][:]
-#     Eg_data_lower=file['lower_bin_boundaries'][:]
-#     Eg_data_upper=file['upper_bin_boundaries'][:]
+l, b=hp.pixelfunc.pix2ang(64, np.arange(12*64*64), lonlat=True, nest=True)
+l=np.where(l<0,l+360,l)
+
+mask=(np.abs(b)<=30.0) 
+
+# Load diffuse gamma-ray map from Platz et al. 2023
+with h5py.File('energy_bins.hdf5', 'r') as file:
+    print("Keys: %s" % file.keys())
+    Eg_data=file['geom_avg_bin_energy'][:]
+    Eg_data_lower=file['lower_bin_boundaries'][:]
+    Eg_data_upper=file['upper_bin_boundaries'][:]
     
-# dEg_data=Eg_data_upper-Eg_data_lower
+dEg_data=Eg_data_upper-Eg_data_lower
 
-# with h5py.File('I_dust.hdf5', 'r') as file:
-#     print("Keys: %s" % file['stats'].keys())
-#     gamma_map_mean=file['stats']['mean'][:]
-#     gamma_map_std=file['stats']['standard deviation'][:]
+with h5py.File('I_dust.hdf5', 'r') as file:
+    print("Keys: %s" % file['stats'].keys())
+    gamma_map_mean=file['stats']['mean'][:]
+    gamma_map_std=file['stats']['standard deviation'][:]
 
-# gamma_map_mean*=1.0e-4*4.0*np.pi/dEg_data[:,np.newaxis]
-# gamma_map_mean=hp.ud_grade(gamma_map_mean[5,:], nside_out=64)
-# gamma_map_mean=hp.reorder(gamma_map_mean, r2n=True)
-# gamma_map_mean=gamma_map_mean[np.newaxis,np.newaxis,:] # GeV^-1 cm^-2 s^-1
-# gamma_map_mean=jnp.array(gamma_map_mean)
+gamma_map_mean*=1.0e-4*4.0*np.pi/dEg_data[:,np.newaxis]
+gamma_map_mean=hp.ud_grade(gamma_map_mean[5,:], nside_out=64)
+gamma_map_mean=hp.reorder(gamma_map_mean, r2n=True)
+gamma_map_mean=gamma_map_mean[np.newaxis,np.newaxis,:] # GeV^-1 cm^-2 s^-1
+gamma_map_mean=jnp.array(gamma_map_mean)
 
-# gamma_map_std*=1.0e-4*4.0*np.pi/dEg_data[:,np.newaxis]
-# gamma_map_std=hp.ud_grade(gamma_map_std[5,:], nside_out=64)
-# gamma_map_std=hp.reorder(gamma_map_std, r2n=True)
-# gamma_map_std=gamma_map_std[np.newaxis,np.newaxis,:] # GeV^-1 cm^-2 s^-1
-# gamma_map_std=jnp.array(gamma_map_mean)
+gamma_map_std*=1.0e-4*4.0*np.pi/dEg_data[:,np.newaxis]
+gamma_map_std=hp.ud_grade(gamma_map_std[5,:], nside_out=64)
+gamma_map_std=hp.reorder(gamma_map_std, r2n=True)
+gamma_map_std=gamma_map_std[np.newaxis,np.newaxis,:] # GeV^-1 cm^-2 s^-1
+gamma_map_std=jnp.array(gamma_map_std)
+
+def plot_data(gamma_map_mean, gamma_map_std):
+    fig=plt.figure(figsize=(18, 5))
+
+    projview(
+        np.log10(gamma_map_mean[0,0,:]), 
+        title=r'Iteration gamma-ray map at $E_\gamma=10$ GeV',
+        coord=["G"], cmap='magma',
+        # min=-8.5, max=-4.5,
+        cbar_ticks=[-8.5, -6.5, -4.5],
+        nest=True, 
+        unit=r'$\log_{10}\phi_{\rm fit}(E_\gamma)\, [{\rm GeV}^{-1}\, {\rm cm}^{-2}\, {\rm s}^{-2}]$',
+        graticule=True, graticule_labels=True, 
+        # xlabel=r'longitude (deg)',
+        # ylabel=r'latitude (deg)',
+        projection_type="mollweide",
+        sub=121
+    )
+
+    projview(
+        np.log10(gamma_map_std[0,0,:]),
+        title=r'Iteration gamma-ray map at $E_\gamma=10$ GeV',
+        coord=["G"], cmap='magma',
+        # min=-8.5, max=-4.5,
+        cbar_ticks=[-8.5, -6.5, -4.5],
+        nest=True, 
+        unit=r'$\log_{10}\phi_{\rm fit}(E_\gamma)\, [{\rm GeV}^{-1}\, {\rm cm}^{-2}\, {\rm s}^{-2}]$',
+        graticule=True, graticule_labels=True, 
+        # xlabel=r'longitude (deg)',
+        # ylabel=r'latitude (deg)',
+        projection_type="mollweide",
+        sub=122
+    )
+
+    plt.savefig('Results_nifty/fg_gamma-map_nifty_2.png', dpi=300)
+    plt.close()
+
+    fig, ax = plt.subplots(1, 1, figsize=(12, 6))
+
+    ax.plot((np.log(gamma_map_mean*1.0e8).ravel()), color='red', alpha=1)
+    ax.plot((gamma_map_std/gamma_map_mean).ravel(), 'k:', alpha=0.2)
+
+    # ax[0].set_ylabel(r'$g_{\rm SNR}\, {\rm (pc^{-2})}$')
+    # ax[0].set_xlabel(r'$R\, {\rm (pc)}$')
+
+    # ax.set_yscale('log')
+
+    fig.tight_layout()
+    fig.savefig("Results_nifty/data_test.png", dpi=400)
 
 # Find the first 'num_zeros' zeros of the zeroth order Bessel function J0
-num_zeros=150
+num_zeros=100
 zeta_n=jnp.array(sp.special.jn_zeros(0, num_zeros))
 
 # Size of the cosmic-ray halo
@@ -90,7 +146,7 @@ ENSR=1.0e51*6.242e+11 # eV -> Average kinetic energy of SNRs
 QE=RSNR*vp*3.0e10*(xiSNR*ENSR/(mp**2*vp*Gam))*(p/mp)**(2.0-alpha)
 
 # Bessel functions
-r_int=jnp.linspace(0.0,R,200000)
+r_int=jnp.linspace(0.0,R,25000)
 j0_n_int=jCR.j0(zeta_n[:,jnp.newaxis]*r_int[jnp.newaxis,:]/R)
 
 # Define gamma-ray energy grids and compute the cross-section from Kafexhiu's code (numpy does not work)
@@ -100,6 +156,7 @@ dXSdEg_Geant4=jCR.func_dXSdEg(E*1.0e-9,Eg)
 # Load gas density, bin width of Heliocentric radial bin, and points for interpolating the 
 ngas, drs, points_intr=jCR.load_gas('../samples_densities_hpixr.fits')
 ngas_mean=jnp.mean(ngas,axis=0)[jnp.newaxis,:,:]
+_, _, Npix=ngas_mean.shape
 
 seed = 42
 key = jr.PRNGKey(seed)
@@ -122,7 +179,7 @@ cfm.add_fluctuations(
 )
 correlated_field = cfm.finalize()
 
-scaling = jft.LogNormalPrior(3.0, 1.0, name="scaling", shape=(1,))
+scaling = jft.LogNormalPrior(1.0, 1.0, name="scaling", shape=(1,))
 
 class Signal(jft.Model):
     def __init__(self, correlated_field, scaling, width=10.0):
@@ -138,6 +195,8 @@ class Signal(jft.Model):
         self.r_int = r_int
         self.j0_n_int = j0_n_int
 
+        self.mask=mask
+
         # Init methods of the Correlated Field model and any prior model in
         # NIFTy.re are aware that their input is standard normal a priori.
         # The `domain` of a model does not know this. Thus, tracking the `init`
@@ -145,21 +204,18 @@ class Signal(jft.Model):
         super().__init__(init=self.cf.init | self.scaling.init)
 
     # Spatial distribution of sources
-    @jit
     def func_gSNR(self, x):
-        return self.scaling(x) * jnp.exp(self.cf(x) + jnp.log(jCR.func_gSNR_CAB98(self.rg_SN)))  
+        return self.scaling(x) * jnp.exp(self.cf(x) + jnp.log(jCR.func_gSNR_YUK04(self.rg_SN)))  
 
     # Coefficients for Bessel expansion
-    @jit
     def func_coef(self, x):
         fr_int=jnp.interp(self.r_int, self.rg_SN, self.func_gSNR(x), right=0.0)
         q_n=jnp.trapezoid(r_int[jnp.newaxis,:]*fr_int[jnp.newaxis,:]*self.j0_n_int,r_int)
-        q_n*=(2.0/(R**2*(jCR.j1(zeta_n)**2))) # pc^-2
+        q_n*=(2.0/(self.pars_prop[0]**2*(jCR.j1(self.zeta_n)**2))) # pc^-2
 
         return q_n
 
     # Compute gamma-ray map
-    @jit
     def func_gamma_map(self, x):
 
         # Transport parameters
@@ -167,10 +223,10 @@ class Signal(jft.Model):
         L_CR=self.pars_prop[1] # pc
         u0_CR=self.pars_prop[4]*365.0*86400.0/3.086e18 # km/s to pc/yr -> Advection speed
 
-        # # Spatial distribution of sources
+        # Bessel expansion of source distribution
         # fr_int=jnp.interp(self.r_int, self.rg_SN, self.func_gSNR(x), right=0.0)
         # q_n=jnp.trapezoid(r_int[jnp.newaxis,:]*fr_int[jnp.newaxis,:]*self.j0_n_int,r_int)
-        # q_n*=(2.0/(R**2*(jCR.j1(zeta_n)**2))) # pc^-2
+        # q_n*=(2.0/(R_CR**2*(jCR.j1(self.zeta_n)**2))) # pc^-2
 
         q_n=self.func_coef(x)
 
@@ -196,19 +252,9 @@ class Signal(jft.Model):
 
         # Interpolate gamma-ray emissivity on healpix-r grid as gas
         qg_Geant4_healpixr=jCR.get_healpix_interp(qg_Geant4,rg,zg,points_intr) # GeV^-1 s^-1 -> Interpolate gamma-ray emissivity
-        # points = (rg, zg)
-        # N_rs, N_pix=points_intr[0].shape
-        # N_E, _, _ = qg_Geant4.shape 
-        # qg_Geant4_healpixr = jnp.zeros((N_E, N_rs, N_pix))
-        # for j in range(N_E):
-        #     interpolated_values = jCR.interpolate_2d(qg_Geant4[j, :, :], rg, zg, points_intr[0].ravel(), points_intr[1].ravel())
-        #     qg_Geant4_healpixr = qg_Geant4_healpixr.at[j, :, :].set(interpolated_values.reshape(N_rs, N_pix))
-            # interpolator = jsp.interpolate.RegularGridInterpolator(points, qg_Geant4[j, :, :], method='linear', bounds_error=False, fill_value=0.0)
-            # qg_Geant4_healpixr = qg_Geant4_healpixr.at[j, :, :].set(interpolator(points_intr))
 
         # Compute the diffuse emission in all gas samples
         gamma_map=jCR.func_gamma_map(ngas_mean,qg_Geant4_healpixr,drs) # GeV^-1 cm^-2 s^-1
-        # gamma_map=jnp.sum(ngas_mean[:,jnp.newaxis,:,:]*qg_Geant4_healpixr[jnp.newaxis,:,:,:]*drs[jnp.newaxis,jnp.newaxis,:,jnp.newaxis],axis=2) # GeV^-1 cm^-2 s^-1
 
         return gamma_map
 
@@ -217,84 +263,52 @@ class Signal(jft.Model):
         # input and performs all the necessary computation for your model.
         # Note, `scaling` here is completely degenarate with `offset_std` in the
         # likelihood but the priors for them are very different.
-        # return self.func_gSNR(x)[::int(dims[0]/Ndata)]
-        return self.func_gamma_map(x)[0,0,:].ravel()
+        return jnp.log(self.func_gamma_map(x)[0,0,mask]*1.0e8)#.ravel()
 
 signal_response = Signal(correlated_field, scaling)
 
-# # Create synthetic data
-# mymap=np.zeros((5,1,1,12*64*64))
-# for i in range(5):
-#     key, subkey = jr.split(key)
-#     pos_truth = jft.random_like(subkey, signal_response.domain)
-#     mymap[i,:,:,:] = signal_response(pos_truth)
-
-# mymap_mean=np.mean(mymap, axis=0)
-# deviations = mymap - mymap_mean[np.newaxis,:,:,:]
-
-# # Compute the covariance matrix
-# cov_matrix = np.cov(deviations, rowvar=False)
-# print(cov_matrix.shape)
-
 key, subkey = jr.split(key)
 pos_truth = jft.random_like(subkey, signal_response.domain)
-signal_response_truth=signal_response(pos_truth)
 
-from healpy.newvisufunc import projview, newprojplot
-
-fig=plt.figure(figsize=(18, 5))
-
-projview(
-    np.log10(signal_response.func_gamma_map(pos_truth)[0,0,:]), 
-    title=r'Iteration gamma-ray map at $E_\gamma=10$ GeV',
-    coord=["G"], cmap='magma',
-    # min=-8.5, max=-4.5,
-    cbar_ticks=[-8.5, -6.5, -4.5],
-    nest=True, 
-    unit=r'$\log_{10}\phi_{\rm fit}(E_\gamma)\, [{\rm GeV}^{-1}\, {\rm cm}^{-2}\, {\rm s}^{-2}]$',
-    graticule=True, graticule_labels=True, 
-    # xlabel=r'longitude (deg)',
-    # ylabel=r'latitude (deg)',
-    projection_type="mollweide",
-    sub=131
-)
-
-plt.savefig('Results_nifty/fg_gamma-map_nifty_1.png', dpi=300)
-plt.close()
+# signal_response_truth=signal_response(pos_truth)
+# keys = jr.split(key, Npix)
+# noise_truth=0.1*jnp.ones_like(signal_response_truth) # jnp.array([jr.normal(keys[i]) * 0.1 for i in range(Npix)])
+# plot_data(signal_response.func_gamma_map(pos_truth),0.1*signal_response.func_gamma_map(pos_truth))
 
 # # Plotting gSNR and power spectrum
-# fig, ax = plt.subplots(1, 1, figsize=(12, 6))
+# fig, ax = plt.subplots(1, 1, figsize=(6, 6))
 
-# # # Plot mock data
-# # ax[0].plot(rG_data, data, c='C5', alpha=1.0, label='Case 1998')
+# # Plot mock data
+# ax.plot(signal_response.rg_SN, signal_response.func_gSNR(pos_truth), c='C5', alpha=1.0, label='Mock data')
+# ax.plot(signal_response.rg_SN, np.sum(signal_response.func_coef(pos_truth)[:,np.newaxis]*sp.special.j0(zeta_n[:,np.newaxis]*signal_response.rg_SN[np.newaxis,:]/20000.0), axis=0), 'g:')
+# ax.plot(signal_response.rg_SN, jCR.func_gSNR_YUK04(signal_response.rg_SN), 'r-', alpha=1.0, label='YUK 04')
 
-# # Plot samples and mean 
-# rG=jnp.linspace(0,R_SN,dims[0])
-# gSNR=jnp.sum(signal_response.func_coef(pos_truth)[:,jnp.newaxis]*jCR.j0(zeta_n[:,jnp.newaxis]*rG[jnp.newaxis,:]/R),axis=0)
-# print(gSNR.shape)
+# for i in range(10):
+#     key, subkey = jr.split(key)
+#     pos_test = jft.random_like(subkey, signal_response.domain)
+#     ax.plot(signal_response.rg_SN, signal_response.func_gSNR(pos_test), c='C5', alpha=1.0)
+#     ax.plot(signal_response.rg_SN, np.sum(signal_response.func_coef(pos_test)[:,np.newaxis]*sp.special.j0(zeta_n[:,np.newaxis]*signal_response.rg_SN[np.newaxis,:]/20000.0), axis=0), 'g:')
 
-# ax.plot(rG, signal_response.func_gSNR(pos_truth), c='C3', alpha=1)
-# ax.plot(rG, jCR.func_gSNR_YUK04(rG), c='C4', alpha=1)
 
-# # # Plot Bessel expansion version
-# ax.plot(rG,gSNR, 'k--')
+# ax.set_ylabel(r'$g_{\rm SNR}\, {\rm (pc^{-2})}$')
+# ax.set_xlabel(r'$R\, {\rm (pc)}$')
 
-# # ax[0].set_ylabel(r'$g_{\rm SNR}\, {\rm (pc^{-2})}$')
-# # ax[0].set_xlabel(r'$R\, {\rm (pc)}$')
+# ax.legend(loc='upper left', prop={"size":22})
 
 # fig.tight_layout()
-# fig.savefig("Results_nifty/results_gSNR_test.png", dpi=400)
+# fig.savefig("Results_nifty/results_gSNR_test_test_5_2.png", dpi=400)
 
-# This defines the Likelihood in Bayes' law. "Amend" glues your forward model to the input
-# lh = jft.Gaussian(signal_response_truth, noise_cov_inv=1.0/((0.1*signal_response_truth)**2)).amend(signal_response)
 
-noise_cov_inv = lambda x: 400.0 * x
-lh = jft.Gaussian(signal_response_truth, noise_cov_inv).amend(signal_response)
+signal_response_truth = jnp.log(gamma_map_mean*1.0e8)[0,0,mask]
+noise_truth = (gamma_map_std/gamma_map_mean)[0,0,mask]
+plot_data(gamma_map_mean,gamma_map_std)
+
+lh = jft.Gaussian(signal_response_truth, noise_cov_inv=1.0/noise_truth**2).amend(signal_response)
 
 # Now lets run the main inference scheme:
-n_vi_iterations = 1
+n_vi_iterations = 6
 delta = 1e-4
-n_samples = 5
+n_samples = 11
 
 key, k_i, k_o = jr.split(key, 3)
 # NOTE, changing the number of samples always triggers a resampling even if
@@ -338,9 +352,12 @@ samples, state = jft.optimize_kl(
 
 rG=jnp.linspace(0,R_SN,dims[0])
 gSNR_sample = jnp.array(tuple(signal_response.func_gSNR(s) for s in samples))
-spectrum_gSNR = jnp.array(tuple(cfm.amplitude(s)[1:] for s in samples))
+spectrum_gSNR_sample = jnp.array(tuple(cfm.amplitude(s)[1:] for s in samples))
+q_n_sample = jnp.array(tuple(signal_response.func_coef(s) for s in samples))
+gamma_sample = jnp.array(tuple(signal_response.func_gamma_map(s) for s in samples))
 
 # Save the gamma-ray maps in a .npz file
-np.savez('Results_nifty/gSNR_sample.npz', rG=np.array(rG), gSNR=np.array(gSNR_sample))
+# np.savez('Results_nifty/gSNR_sample_3.npz', rG=np.array(rG), gSNR=np.array(gSNR_sample), spectrum_gSNR=np.array(spectrum_gSNR_sample), gSNR_truth=np.array(signal_response.func_gSNR(pos_truth)), q_n=np.array(q_n_sample), gamma=np.array(gamma_sample), gamma_truth=np.array(signal_response.func_gamma_map(pos_truth)))
+np.savez('Results_nifty/gSNR_sample_4.npz', rG=np.array(rG), gSNR=np.array(gSNR_sample), spectrum_gSNR=np.array(spectrum_gSNR_sample), gSNR_truth=np.array(signal_response.func_gSNR(pos_truth)), q_n=np.array(q_n_sample), gamma=np.array(gamma_sample), gamma_truth=np.array(gamma_map_mean))
 
 print('Runtime: ',time.time()-start_time,'s')

@@ -362,16 +362,7 @@ def load_gas(path_to_gas):
     ngas=2.0*1.15*samples_H2+samples_HI # cm^-3 -> Multiply 1.15 for higher CO to H2 conversion factor
 
     N_sample, N_rs, N_pix=ngas.shape
-    N_pix=12*16*16
     NSIDE=int(np.sqrt(N_pix/12))
-
-    ngas_new=np.zeros((N_sample, N_rs, N_pix))
-    for i in range(N_sample):
-        for j in range(N_rs):
-            ngas_new[i, j, :] = hp.ud_grade(ngas[i, j, :], nside_out=NSIDE)
-
-    # NSIDE=int(np.sqrt(N_pix_new/12))
-    # NSIDE=int(np.sqrt(N_pix/12))
 
     # Angles for all pixels
     thetas, phis=hp.pix2ang(NSIDE,jnp.arange(N_pix),nest=True,lonlat=False)
@@ -387,8 +378,47 @@ def load_gas(path_to_gas):
 
     points_intr=(jnp.sqrt(xs**2+ys**2),jnp.abs(zs))
 
-    # return jnp.array(ngas), jnp.array(drs), points_intr
-    return jnp.array(ngas_new), jnp.array(drs), points_intr
+    return jnp.array(ngas), jnp.array(drs), points_intr
+
+# # Function to load gas density, bin width of Heliocentric radial bin, and points for interpolating the 
+# def load_gas(path_to_gas):
+
+#     # Position of solar system from the gas map (see Soding et al. 2024)
+#     Rsol=8178.0 # pc
+
+#     hdul=fits.open(path_to_gas)
+#     rs=(hdul[2].data)['radial pixel edges'].astype(np.float64) # kpc -> Edges of radial bins
+#     drs=np.diff(rs)*3.086e21 # cm -> Radial bin width for line-of-sight integration
+#     rs=(hdul[1].data)['radial pixel centres'].astype(np.float64)*1.0e3 # pc -> Centres of radial bins for interpolating cosmic-ray distribution
+#     samples_HI=(hdul[3].data).T # cm^-3
+#     samples_H2=(hdul[4].data).T # cm^-3
+#     hdul.close()
+#     ngas=2.0*1.15*samples_H2+samples_HI # cm^-3 -> Multiply 1.15 for higher CO to H2 conversion factor
+
+#     N_sample, N_rs, N_pix=ngas.shape
+#     N_pix=12*16*16
+#     NSIDE=int(np.sqrt(N_pix/12))
+
+#     ngas_new=np.zeros((N_sample, N_rs, N_pix))
+#     for i in range(N_sample):
+#         for j in range(N_rs):
+#             ngas_new[i, j, :] = hp.ud_grade(ngas[i, j, :], nside_out=NSIDE)
+
+#     # Angles for all pixels
+#     thetas, phis=hp.pix2ang(NSIDE,jnp.arange(N_pix),nest=True,lonlat=False)
+
+#     # Points for interpolation
+#     ls=phis[jnp.newaxis, :]
+#     bs=jnp.pi/2.0-thetas[jnp.newaxis, :]
+#     rs=rs[:, jnp.newaxis]
+
+#     xs=-rs*jnp.cos(ls)*jnp.cos(bs)+Rsol
+#     ys=-rs*jnp.sin(ls)*jnp.cos(bs)
+#     zs=rs*jnp.sin(bs)
+
+#     points_intr=(jnp.sqrt(xs**2+ys**2),jnp.abs(zs))
+
+#     return jnp.array(ngas_new), jnp.array(drs), points_intr
 
 @jit
 def func_gamma_map_fit(theta, pars_prop, zeta_n, dXSdEg_Geant4, ngas, drs, points_intr, E):
