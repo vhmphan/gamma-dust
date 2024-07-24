@@ -83,7 +83,7 @@ def plot_gamma_map(gamma_map_theta, gamma_map_mean):
     fig.subplots_adjust(hspace=0.05, wspace=0.15, top=1.1, bottom=0.1, left=0.05, right=0.95)
 
     # plt.savefig('fg_gamma-map_FERMIQGSJET_%d.png' % i, dpi=300)
-    plt.savefig('Results_nifty/fg_gamma-map_FERMIQGSJET_bestfit_1.png', dpi=300)
+    plt.savefig('Results_nifty/fg_gamma-map_FERMIQGSJET_bestfit_1_3.png', dpi=300)
     plt.close()
 
 def plot_gamma_l(gamma_map_theta, gamma_map_mean, dorl):
@@ -151,7 +151,7 @@ def plot_gamma_l(gamma_map_theta, gamma_map_mean, dorl):
     plt.close()
 
 # Load the .npz file
-data = np.load('Results_nifty/gSNR_sample_4.npz')
+data = np.load('Results_nifty/gSNR_sample_b<30_Idust_i6.npz')
 
 # Access arrays by their names
 rG = data['rG']
@@ -167,7 +167,39 @@ print(n_samples)
 
 fs=22
 
-plot_gamma_map(np.mean(gamma_sample, axis=0),gamma_truth)
+# Find the first 'num_zeros' zeros of the zeroth order Bessel function J0
+num_zeros=100
+zeta_n=jnp.array(sp.special.jn_zeros(0, num_zeros))
+
+# Size of the cosmic-ray halo
+R=20000.0 # pc -> Radius of halo
+L=4000.0  # pc -> Height of halo
+
+# Parameters for injection spectrum
+alpha=4.23 # -> Injection spectral index
+xiSNR=0.065 # -> Fracion of SNR kinetic energy into CRs
+Gam=jCR.func_Gam(alpha)
+
+# Transport parameter
+u0=7.0 # km/s -> Advection speed
+
+# Combine all parameters for proagation
+pars_prop=jnp.array([R, L, alpha, xiSNR, u0, Gam])
+
+# Define cosmic-ray grid and diffusion coefficient
+E=jnp.logspace(10.0,14.0,81) # eV 
+
+# Define gamma-ray energy grids and compute the cross-section from Kafexhiu's code (numpy does not work)
+Eg=jnp.logspace(np.log10(13.33521432163324),2,1) # GeV
+dXSdEg_Geant4=jCR.func_dXSdEg(E*1.0e-9,Eg)
+
+# Load gas density, bin width of Heliocentric radial bin, and points for interpolating the 
+ngas, drs, points_intr=jCR.load_gas('../samples_densities_hpixr.fits')
+ngas_mean=jnp.mean(ngas,axis=0)[jnp.newaxis,:,:]
+
+gamma_gSNR=jCR.func_gamma_map_gSNR((rG,jnp.mean(gSNR_sample,axis=0)),pars_prop,zeta_n,dXSdEg_Geant4,ngas_mean,drs,points_intr,E)
+# plot_gamma_map(gamma_gSNR,gamma_truth)
+plot_gamma_map(gamma_sample[0,:],gamma_truth)
 plot_gamma_l(np.mean(gamma_sample, axis=0),gamma_truth,'disk')
 plot_gamma_l(np.mean(gamma_sample, axis=0),gamma_truth,'local')
 
@@ -197,7 +229,8 @@ ax[0].set_xlabel(r'$R\, {\rm (pc)}$')
 
 ax[0].legend(loc='upper right', prop={"size":fs})
 # ax[0].set_xlim(8000.0,8200.0)
-ax[0].set_ylim(0.0,9.0e-9)
+# ax[0].set_ylim(0.0,9.0e-9)
+ax[0].set_yscale('log')
 
 # Plot power spectra
 for i in range(n_samples):

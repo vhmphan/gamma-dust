@@ -499,3 +499,76 @@ def loss_func_gamma_map(theta, pars_prop, zeta_n, dXSdEg_Geant4, ngas, drs, poin
 # @jit
 # def update_gamma_map(theta, pars_prop, zeta_n, dXSdEg_Geant4, ngas, drs, points_intr, E, gamma_map_data, lr):
 #     return theta-lr*grad(loss_func_gamma_map)(theta,pars_prop,zeta_n,dXSdEg_Geant4,ngas,drs,points_intr,E,gamma_map_data)
+
+@jit
+def func_Gam(alpha):
+    mp=938.272e6 # eV
+
+    xmin=jnp.sqrt((1.0e8+mp)**2-mp**2)/mp
+    xmax=jnp.sqrt((1.0e14+mp)**2-mp**2)/mp
+    x=jnp.logspace(jnp.log10(xmin),jnp.log10(xmax),5000)
+    Gam=jnp.trapezoid(x**(2.0-alpha)*(jnp.sqrt(x**2+1.0)-1.0),x)
+
+    return Gam
+
+@jit
+def func_gamma_map_gSNR(rgSNR, pars_prop, zeta_n, dXSdEg_Geant4, ngas, drs, points_intr, E):
+# E (eV) and Eg (GeV)
+
+    rSNR, gSNR=rgSNR
+
+    mp=938.272e6 # eV
+
+    # Transsport parameters
+    R=pars_prop[0] # pc
+    L=pars_prop[1] # pc
+    alpha=pars_prop[2] 
+    xiSNR=pars_prop[3]
+    u0=pars_prop[4]*365.0*86400.0/3.086e18 # km/s to pc/yr -> Advection speed
+    Gam=pars_prop[5] # -> Normalization for injection spectrum
+
+    rg=jnp.linspace(0.0,R,501)  # pc
+    zg=jnp.linspace(0.0,L,41)   # pc
+    p=jnp.sqrt((E+mp)**2-mp**2) # eV
+    vp=p/(E+mp)
+
+    # Diffusion coefficient
+    pb=312.0e9 # eV/c
+    Diff=1.1e28*(365.0*86400.0/(3.08567758e18)**2)*vp*(p/1.0e9)**0.63/(1.0+(p/pb)**2)**0.1 # pc^2/yr
+
+    # Spatial distribution of sources
+    r_int=jnp.linspace(0.0,R,200000)
+    fr_int=jnp.interp(r_int,rSNR,gSNR,right=0.0)
+
+    j0_n=j0(zeta_n[:,jnp.newaxis]*r_int[jnp.newaxis,:]/R)
+    q_n=jnp.trapezoid(r_int[jnp.newaxis,:]*fr_int[jnp.newaxis,:]*j0_n,r_int)
+    q_n*=(2.0/(R**2*(j1(zeta_n)**2))) # pc^-2
+
+    # Injection spectrum of sources
+    RSNR=0.03 # yr^-1 -> SNR rate
+    ENSR=1.0e51*6.242e+11 # eV -> Average kinetic energy of SNRs
+    QE=RSNR*vp*3.0e10*(xiSNR*ENSR/(mp**2*vp*Gam))*(p/mp)**(2.0-alpha)
+
+    Diff_CR=Diff[jnp.newaxis,:,jnp.newaxis,jnp.newaxis]
+    zg_CR=zg[jnp.newaxis,jnp.newaxis,jnp.newaxis,:]
+    rg_CR=rg[jnp.newaxis,jnp.newaxis,:,jnp.newaxis]
+    zeta_n_CR=zeta_n[:,jnp.newaxis,jnp.newaxis,jnp.newaxis]
+    q_n_CR=q_n[:,jnp.newaxis,jnp.newaxis,jnp.newaxis]
+
+    Sn=jnp.sqrt((u0/Diff_CR)**2+4.0*(zeta_n_CR/R)**2) # pc^-2
+    fEn=j0(zeta_n_CR*rg_CR/R)*q_n_CR*jnp.exp(u0*zg_CR/(2.0*Diff_CR))*jnp.sinh(Sn*(L-zg_CR)/2.0)/(jnp.sinh(Sn*L/2.0)*(u0+Sn*Diff_CR*(jnp.cosh(Sn*L/2.0)/jnp.sinh(Sn*L/2.0))))
+    fE=jnp.sum(fEn,axis=0) # eV^-1 pc^-3
+    fE=jnp.where(fE<0.0,0.0,fE)
+
+    jE=fE*QE[:,jnp.newaxis,jnp.newaxis]*1.0e9/(3.086e18)**3 # GeV^-1 cm^-2 s^-1
+
+    # Compute gamma-ray emissivity with cross section from Kafexhiu et al. 2014 (note that 1.8 is the enhancement factor due to nuclei)
+    qg_Geant4=1.88*jnp.trapezoid(jE[:,jnp.newaxis,:,:]*dXSdEg_Geant4[:,:,jnp.newaxis,jnp.newaxis], E*1.0e-9, axis=0) # GeV^-1 s^-1 -> Enhancement factor 1.88 from Kachelriess et al. 2014
+
+    # Interpolate gamma-ray emissivity on healpix-r grid as gas
+    qg_Geant4_healpixr=get_healpix_interp(qg_Geant4,rg,zg,points_intr) # GeV^-1 s^-1 -> Interpolate gamma-ray emissivity
+
+    # Compute the diffuse emission in all gas samples
+    gamma_map=func_gamma_map(ngas,qg_Geant4_healpixr,drs) # GeV^-1 cm^-2 s^-1
+
+    return gamma_map
