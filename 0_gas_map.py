@@ -131,6 +131,85 @@ plt.close()
 #     plt.savefig('fg_gas_sample_%d.png' % (isample), dpi=150)
 #     plt.close()
 
+# Load diffuse gamma-ray map from Platz et al. 2023
+with h5py.File('JCR/energy_bins.hdf5', 'r') as file:
+    print("Keys: %s" % file.keys())
+    Eg_data=file['geom_avg_bin_energy'][:]
+    Eg_data_lower=file['lower_bin_boundaries'][:]
+    Eg_data_upper=file['upper_bin_boundaries'][:]
+    
+dEg_data=Eg_data_upper-Eg_data_lower
+
+with h5py.File('JCR/I_dust.hdf5', 'r') as file:
+    print("Keys: %s" % file['stats'].keys())
+    gamma_map_mean=file['stats']['mean'][:]
+    gamma_map_std=file['stats']['standard deviation'][:]
+
+gamma_map_mean*=1.0e-4*4.0*np.pi/dEg_data[:,np.newaxis]
+gamma_map_mean=hp.ud_grade(gamma_map_mean[5,:], nside_out=64)
+gamma_map_mean=hp.reorder(gamma_map_mean, r2n=True)
+gamma_map_mean=gamma_map_mean[np.newaxis,np.newaxis,:] # GeV^-1 cm^-2 s^-1
+
+fig=plt.figure(figsize=(18, 5))
+
+projview(
+    np.log10(np.mean(NHImap+2.0*NH2map,axis=0)), 
+    title=r'Mean gas column density',
+    coord=["G"], cmap='magma',
+    min=20, max=23,
+    nest=True, 
+    unit=r'$log_{10}N_{\rm H}\, [{\rm cm}^{-2}]$',
+    graticule=True, graticule_labels=True, 
+    # xlabel=r'longitude (deg)',
+    # ylabel=r'latitude (deg)',
+    projection_type="mollweide",
+    sub=131
+)
+
+projview(
+    np.log10(gamma_map_mean[0,0,:]), 
+    title=r'Diffuse gamma-ray at $E_\gamma=10$ GeV',
+    coord=["G"], cmap='magma',
+    min=-8.5, max=-4.5,
+    nest=True, 
+    unit=r'$log_{10}I\, [{\rm GeV^{-1}\, cm^{-2}\, s^{-1}}]$',
+    graticule=True, graticule_labels=True, 
+    # xlabel=r'longitude (deg)',
+    # ylabel=r'latitude (deg)',
+    projection_type="mollweide",
+    sub=132
+)
+
+l, b=hp.pixelfunc.pix2ang(64, np.arange(12*64*64), lonlat=True, nest=True)
+l=np.where(l<0,l+360,l)
+
+mask=(np.abs(b)<20.0) 
+qg=gamma_map_mean[0,0,:]/(np.mean(NHImap+2.0*NH2map,axis=0)*4.0*np.pi)
+qg[mask]=np.nan
+print(np.mean(qg))
+
+projview(
+    np.log10(qg), 
+    title=r'Local gamma-ray emissivity at $E_\gamma=10$ GeV',
+    coord=["G"], cmap='magma',
+    min=-30, max=-29,
+    cbar_ticks=[-30, -29.5, -29],
+    nest=True, 
+    unit=r'$log_{10}q_\gamma\, [{\rm GeV^{-1}\, s^{-1}\, sr^{-1}}]$',
+    graticule=True, graticule_labels=True, 
+    # xlabel=r'longitude (deg)',
+    # ylabel=r'latitude (deg)',
+    projection_type="mollweide",
+    sub=133
+)
+
+fig.tight_layout(pad=1.0)
+fig.subplots_adjust(hspace=0.05, wspace=0.15, top=1.1, bottom=0.1, left=0.05, right=0.95)
+
+plt.savefig('fg_gas_gamma.png', dpi=150)
+plt.close()
+
+
 import healpy as hp
 import numpy as np
 import matplotlib.pyplot as plt
@@ -194,24 +273,24 @@ NH2map_cart=NH2map[:,healpix_indices][:,:,::-1]
 # # Save the figure if needed
 # plt.savefig('cartesian_projection.png')
 
-hdul=fits.open('CO_2D_map_all_sky_smooth.fit')
-print(hdul[0].data.shape)
+# hdul=fits.open('CO_2D_map_all_sky_smooth.fit')
+# print(hdul[0].data.shape)
 
-# Plot the Cartesian map
-plt.imshow(np.abs(np.log10(hdul[0].data)), extent=(-180, 180, -30, 30), cmap='magma', origin='lower')
-# plt.imshow(np.abs(np.log10(NHImap_cart_test[0,:,:])), extent=(-180, 180, -90, 90), cmap='magma', origin='lower')
-plt.colorbar(label='Intensity')
-plt.xlabel('Longitude')
-plt.ylabel('Latitude')
-plt.title('Cartesian Skymap')
-plt.ylim(-30,30)
-plt.savefig('cartesian_projection_CO.png')
+# # Plot the Cartesian map
+# plt.imshow(np.abs(np.log10(hdul[0].data)), extent=(-180, 180, -30, 30), cmap='magma', origin='lower')
+# # plt.imshow(np.abs(np.log10(NHImap_cart_test[0,:,:])), extent=(-180, 180, -90, 90), cmap='magma', origin='lower')
+# plt.colorbar(label='Intensity')
+# plt.xlabel('Longitude')
+# plt.ylabel('Latitude')
+# plt.title('Cartesian Skymap')
+# plt.ylim(-30,30)
+# plt.savefig('cartesian_projection_CO.png')
 
-plt.imshow(np.abs(np.log10(np.mean(NH2map_cart,axis=0))), extent=(-180, 180, -90, 90), cmap='magma', origin='lower')
-# plt.imshow(np.abs(np.log10(NHImap_cart_test[0,:,:])), extent=(-180, 180, -90, 90), cmap='magma', origin='lower')
-plt.colorbar(label='Intensity')
-plt.xlabel('Longitude')
-plt.ylabel('Latitude')
-plt.title('Cartesian Skymap')
-plt.ylim(-30,30)
-plt.savefig('cartesian_projection_.png')
+# plt.imshow(np.abs(np.log10(np.mean(NH2map_cart,axis=0))), extent=(-180, 180, -90, 90), cmap='magma', origin='lower')
+# # plt.imshow(np.abs(np.log10(NHImap_cart_test[0,:,:])), extent=(-180, 180, -90, 90), cmap='magma', origin='lower')
+# plt.colorbar(label='Intensity')
+# plt.xlabel('Longitude')
+# plt.ylabel('Latitude')
+# plt.title('Cartesian Skymap')
+# plt.ylim(-30,30)
+# plt.savefig('cartesian_projection_.png')
