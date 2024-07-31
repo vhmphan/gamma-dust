@@ -70,7 +70,7 @@ ngas_mean = jnp.mean(ngas, axis=0)[jnp.newaxis, :, :]
 N_SAMPLES = 51
 LAYERS = [1, 10, 10, 10, 1]
 LEARNING_RATE = 0.1
-N_EPOCHS = 20000
+N_EPOCHS = 10000
 epoch_print = N_EPOCHS / 10
 
 # Random key
@@ -121,7 +121,7 @@ y_init = jnp.interp(8.178,
                         network_forward(x_samples_raw*1.0e3,weight_matrices,bias_vectors,activation_functions).ravel())
 
 y_sol = 2.0e-9 # jCR.func_gSNR_YUK04(jnp.array([8178.0])) / jnp.exp(y_init)
-y_grtruth = jnp.log((jCR.func_gSNR_YUK04(x_samples_raw * 1.0e3) +5.0e-9*jnp.exp(-(x_samples_raw-9.0)**2/2.0)) / (y_sol))
+y_grtruth = jnp.log((jCR.func_gSNR_YUK04(x_samples_raw * 1.0e3) + 1.0e-9*jnp.exp(-(x_samples_raw-10.0)**2/2.0) + 1.0e-9*jnp.exp(-(x_samples_raw-6.0)**2/0.5)) / (y_sol))
 y_samples_raw = y_grtruth
 y_samples = jnp.log(jCR.func_gamma_map_gSNR(((x_samples_raw.ravel()) * 1.0e3, (jnp.exp(y_samples_raw) * y_sol).ravel()), pars_prop, zeta_n, dXSdEg_Geant4, ngas_mean, drs, points_intr, E))[0, 0, mask]
 
@@ -176,7 +176,7 @@ for epoch in range(N_EPOCHS):
         plt.scatter(x_samples_raw, jnp.exp(y_samples_raw) * y_sol, label='Samples')
         plt.scatter(x_samples_raw, jnp.exp(network_forward(x_samples, weights, biases, activation_functions)) * y_sol, label='Interation %d' % (epoch + 1))
         plt.plot(x_samples_raw, jnp.exp(y_grtruth) * y_sol, 'k--', label='Ground truth')
-        plt.legend(loc='upper left')
+        plt.legend(loc='upper right')
         plt.savefig('nn_epoch_%d.png' % (epoch + 1))
         plt.close()
     
