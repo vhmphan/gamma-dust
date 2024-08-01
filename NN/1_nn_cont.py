@@ -56,34 +56,19 @@ ngas_mean = jnp.mean(ngas, axis=0)[jnp.newaxis, :, :]
 # Define the properties of the neural network
 N_SAMPLES = 51
 LAYERS = [1, 10, 10, 10, 1]
-LEARNING_RATE = 0.1
-N_EPOCHS = 10
+LEARNING_RATE = 0.005
+N_EPOCHS = 10000
 epoch_print = N_EPOCHS / 10
 
-# Random key
-key = jax.random.PRNGKey(42)
+# Load the .npz file
+data_WB = np.load('nn.npz')
 
-# Weight initialization
-weight_matrices = []
-bias_vectors = []
+# Extract weights, biases, and activation functions
+weight_matrices = [data_WB[f"weight_{i}"] for i in range(len([key for key in data_WB if key.startswith("weight_")]))]
+bias_vectors = [data_WB[f"bias_{i}"] for i in range(len([key for key in data_WB if key.startswith("bias_")]))]
 activation_functions = []
 
 for (fan_in, fan_out) in zip(LAYERS[:-1], LAYERS[1:]):
-    kernel_matrix_uniform_limit = jnp.sqrt(6 / (fan_in + fan_out))
-
-    key, wkey = jax.random.split(key)
-
-    W = jax.random.uniform(
-        wkey,
-        (fan_in, fan_out),
-        minval=-kernel_matrix_uniform_limit,
-        maxval=+kernel_matrix_uniform_limit,
-    )
-
-    b = jnp.zeros(fan_out)
-
-    weight_matrices.append(W)
-    bias_vectors.append(b)
     activation_functions.append(jax.nn.sigmoid)
 
 activation_functions[-1] = lambda x: x
@@ -95,19 +80,12 @@ def network_forward(x, weights, biases, activations):
         a = f(a @ W + b)
     return a
 
-# Random key for mock data
-key, ynoisekey = jax.random.split(key, 2)
-
 # Spatial domain for the function gSNR to be inferred and renormalize for the neural network
 x_samples_raw = jnp.linspace(0, 15.0, N_SAMPLES)[:, jnp.newaxis]
 x_samples = x_samples_raw / x_samples_raw[-1]
 
 # Mock data for testing
-y_init = jnp.interp(8.178,
-                        x_samples_raw.ravel(),
-                        network_forward(x_samples_raw*1.0e3,weight_matrices,bias_vectors,activation_functions).ravel())
-
-y_sol = 2.0e-9 # 0.45*jCR.func_gSNR_YUK04(jnp.array([8178.0])) / jnp.exp(y_init)
+y_sol = 2.0e-9 # jCR.func_gSNR_YUK04(jnp.array([8178.0])) / jnp.exp(y_init)
 y_grtruth = jnp.log((jCR.func_gSNR_YUK04(x_samples_raw * 1.0e3) + 1.0e-9*jnp.exp(-(x_samples_raw-10.0)**2/2.0) + 1.0e-9*jnp.exp(-(x_samples_raw-6.0)**2/0.5)) / (y_sol))
 y_samples_raw = y_grtruth
 y_samples = jnp.log(jCR.func_gamma_map_gSNR(((x_samples_raw.ravel()) * 1.0e3, (jnp.exp(y_samples_raw) * y_sol).ravel()), pars_prop, zeta_n, dXSdEg_Geant4, ngas_mean, drs, points_intr, E))[0, 0, mask]

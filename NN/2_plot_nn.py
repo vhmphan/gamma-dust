@@ -84,17 +84,16 @@ def plot_gamma_map(gamma_map_theta, gamma_map_mean):
     plt.close()
 
 # Load the .npz file
-data = np.load('Results_nn/gSNR_nn.npz')
+data = np.load('Results_nn/gSNR_nn_10000_small_lr.npz')
 
 # Access arrays by their names
 rG = data['rG']
 gSNR = data['gSNR']
-gSNR_samples =data['gSNR_samples']
+gSNR_samples = data['gSNR_samples']
 gSNR_truth = data['gSNR_truth']
 loss_history = data['loss_history']
 gamma_sample = data['gamma']
 gamma_truth = data['gamma_truth']
-
 
 N_samples, _, _ = gSNR_samples.shape
 
@@ -106,17 +105,24 @@ fs=22
 fig, ax = plt.subplots(1, 1, figsize=(12, 6))
 
 # Plot mock data
-ax.plot(rG, gSNR_truth, c='C5', alpha=1.0, label='Mock data')
-ax.plot(rG, gSNR, c='red', alpha=1, label='Fit')
+ax.plot(rG, gSNR_truth, 'ko', label='Mock data')
+ax.plot(rG, gSNR, color='red', linewidth=3, label='Fit')
 
-for i in range(N_samples):
-    ax.plot(rG, gSNR_samples[i,:], 'k--')
+# for i in range(N_samples):
+#     if(i%1000==0):
+#         ax.plot(rG, gSNR_samples[i,:], 'k--')
 
+ax.set_ylabel(r'$g_{\rm SNR}\, {\rm (pc^{-2})}$',fontsize=fs)
+ax.set_xlabel(r'$R\, {\rm (pc)}$',fontsize=fs)
 
-ax.set_ylabel(r'$g_{\rm SNR}\, {\rm (pc^{-2})}$')
-ax.set_xlabel(r'$R\, {\rm (pc)}$')
+ax.tick_params(axis='both', which='major', labelsize=fs)
+ax.tick_params(axis='both', which='minor', labelsize=fs)
 
 ax.legend(loc='upper right', prop={"size":fs})
+
+ax.set_xlim(0,15)
+ax.set_ylim(1.0e-10,1.0e-8)
+ax.set_yscale('log')
 
 fig.tight_layout()
 fig.savefig("Results_nn/results_gSNR_nn.png", dpi=400)
