@@ -55,9 +55,9 @@ ngas_mean = jnp.mean(ngas, axis=0)[jnp.newaxis, :, :]
 
 # Define the properties of the neural network
 N_SAMPLES = 51
-LAYERS = [1, 10, 10, 10, 1]
+LAYERS = [1, 20, 20, 20, 1]
 LEARNING_RATE = 0.1
-N_EPOCHS = 10
+N_EPOCHS = 100000
 epoch_print = N_EPOCHS / 10
 
 # Random key
@@ -108,16 +108,18 @@ y_init = jnp.interp(8.178,
                         network_forward(x_samples_raw*1.0e3,weight_matrices,bias_vectors,activation_functions).ravel())
 
 y_sol = 2.0e-9 # 0.45*jCR.func_gSNR_YUK04(jnp.array([8178.0])) / jnp.exp(y_init)
-y_grtruth = jnp.log((jCR.func_gSNR_YUK04(x_samples_raw * 1.0e3) + 1.0e-9*jnp.exp(-(x_samples_raw-10.0)**2/2.0) + 1.0e-9*jnp.exp(-(x_samples_raw-6.0)**2/0.5)) / (y_sol))
+y_grtruth = jnp.log(jCR.func_gSNR_fit(jnp.array([2.1657154516413e-09,0.4440271097459036,1.3679861897204548,4.093126645363395]),zeta_n,R*1.0e-3,x_samples_raw)/y_sol) # jnp.log((jCR.func_gSNR_YUK04(x_samples_raw * 1.0e3) + 1.0e-9*jnp.exp(-(x_samples_raw-10.0)**2/2.0) + 1.0e-9*jnp.exp(-(x_samples_raw-6.0)**2/0.5)) / (y_sol))
 y_samples_raw = y_grtruth
-y_samples = jnp.log(jCR.func_gamma_map_gSNR(((x_samples_raw.ravel()) * 1.0e3, (jnp.exp(y_samples_raw) * y_sol).ravel()), pars_prop, zeta_n, dXSdEg_Geant4, ngas_mean, drs, points_intr, E))[0, 0, mask]
+# y_samples = jnp.log(jCR.func_gamma_map_gSNR(((x_samples_raw.ravel()) * 1.0e3, (jnp.exp(y_samples_raw) * y_sol).ravel()), pars_prop, zeta_n, dXSdEg_Geant4, ngas_mean, drs, points_intr, E))[0, 0, mask]
+y_samples=y_samples_raw
+print(y_samples.shape)
 
 # Loss function to compare gamma-ray maps
 def loss_forward(y_guess, y_ref):
-    gamma_guess = jnp.log(jCR.func_gamma_map_gSNR(((x_samples_raw.ravel()) * 1.0e3, (jnp.exp(y_guess) * y_sol).ravel()), pars_prop, zeta_n, dXSdEg_Geant4, ngas_mean, drs, points_intr, E))
-    # gamma_ref = jnp.log(jCR.func_gamma_map_gSNR(((x_samples_raw.ravel()) * 1.0e3, (jnp.exp(y_ref) * y_sol).ravel()), pars_prop, zeta_n, dXSdEg_Geant4, ngas_mean, drs, points_intr, E))
-    delta = gamma_guess[0, 0, mask] - y_ref
-    # delta = y_guess - y_ref
+    # gamma_guess = jnp.log(jCR.func_gamma_map_gSNR(((x_samples_raw.ravel()) * 1.0e3, (jnp.exp(y_guess) * y_sol).ravel()), pars_prop, zeta_n, dXSdEg_Geant4, ngas_mean, drs, points_intr, E))
+    # # gamma_ref = jnp.log(jCR.func_gamma_map_gSNR(((x_samples_raw.ravel()) * 1.0e3, (jnp.exp(y_ref) * y_sol).ravel()), pars_prop, zeta_n, dXSdEg_Geant4, ngas_mean, drs, points_intr, E))
+    # delta = gamma_guess[0, 0, mask] - y_ref
+    delta = y_guess - y_ref
 
     return 100.0 * jnp.mean(delta**2)
 
@@ -165,7 +167,7 @@ for epoch in range(N_EPOCHS):
         plt.scatter(x_samples_raw, jnp.exp(network_forward(x_samples, weights, biases, activation_functions)) * y_sol, label='Interation %d' % (epoch + 1))
         plt.plot(x_samples_raw, jnp.exp(y_grtruth) * y_sol, 'k--', label='Ground truth')
         plt.legend(loc='upper right')
-        plt.savefig('nn_epoch_%d.png' % (epoch + 1))
+        plt.savefig('Results_nn/nn_epoch_%d.png' % (epoch + 1))
         plt.close()
     
     loss_history.append(loss)
@@ -178,7 +180,7 @@ gamma_fit = jCR.func_gamma_map_gSNR(((x_samples_raw.ravel()) * 1.0e3, (jnp.exp(y
 gamma_grtruth = jCR.func_gamma_map_gSNR(((x_samples_raw.ravel()) * 1.0e3, (jnp.exp(y_grtruth)*y_sol).ravel()), pars_prop, zeta_n, dXSdEg_Geant4, ngas_mean, drs, points_intr, E)
 
 # Save best fit and samples
-np.savez('Results_nn/gSNR_nn.npz', 
+np.savez('Results_nn/gSNR_nn_nr=20_ep=5000_ana.npz', 
             rG=np.array(x_samples_raw.ravel()), 
             gSNR=np.array(jnp.exp(y_fit).ravel())*y_sol, 
             gSNR_truth=np.array(jnp.exp(y_grtruth))*y_sol, 
@@ -191,6 +193,6 @@ np.savez('Results_nn/gSNR_nn.npz',
 weights_dict = {f"weight_{i}": np.array(weights[i]) for i in range(len(weights))}
 biases_dict = {f"bias_{i}": np.array(biases[i]) for i in range(len(biases))}
 save_dict = {**weights_dict, **biases_dict}
-np.savez('nn.npz', **save_dict)
+np.savez('nn_20_ana.npz', **save_dict)
 
 print('Run time: %.2f seconds' % (time.time() - start_time))

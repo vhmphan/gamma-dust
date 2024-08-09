@@ -1,5 +1,8 @@
 import os
 os.environ['JAX_ENABLE_X64'] = 'True'
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '/Users/vphan/Minh/Code/Gas3D/gamma-dust')))
+
 import jax.numpy as jnp
 from jax import grad
 import LibjaxCR as jCR
@@ -154,11 +157,11 @@ ax.plot(r_data,gSNR_data,label='Yusifov et al. 2004',color='red',lw=3)
 print(np.argmin(chi2))
 
 for i in range(N):
-    # if((i%100==0)):
-    #     gamma_map_theta=jCR.func_gamma_map_fit(jnp.array(theta[i,:]),pars_prop,zeta_n,dXSdEg_Geant4,ngas_mean,drs,points_intr,E)
-    #     plot_gamma_map(i,gamma_map_theta,gamma_map_mean)
-    #     print('i=%d -> A_fit=' %i,theta[i][0],'B_fit=',theta[i][1],'C_fit=',theta[i][2],'D_fit=',theta[i][3])
-    #     ax.plot(r_data, jCR.func_gSNR_fit(theta[i,:],zeta_n,R*1.0e-3,r_data), linestyle='--', color=color[i])
+    if((i%100==0)):
+        gamma_map_theta=jCR.func_gamma_map_fit(jnp.array(theta[i,:]),pars_prop,zeta_n,dXSdEg_Geant4,ngas_mean,drs,points_intr,E)
+        plot_gamma_map(i,gamma_map_theta,gamma_map_mean)
+        print('i=%d -> A_fit=' %i,theta[i][0],'B_fit=',theta[i][1],'C_fit=',theta[i][2],'D_fit=',theta[i][3])
+        ax.plot(r_data, jCR.func_gSNR_fit(theta[i,:],zeta_n,R*1.0e-3,r_data), linestyle='--', color=color[i])
     if(i==np.argmin(chi2)):
         gamma_map_theta=jCR.func_gamma_map_fit(jnp.array(theta[i,:]),pars_prop,zeta_n,dXSdEg_Geant4,ngas_mean,drs,points_intr,E)
         plot_gamma_map(i,gamma_map_theta,gamma_map_mean)

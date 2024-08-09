@@ -12,11 +12,32 @@ import scipy as sp
 import numpy as np
 import healpy as hp
 import time
+import h5py
 
 l, b = hp.pixelfunc.pix2ang(64, np.arange(12*64*64), lonlat=True, nest=True)
 l = np.where(l < 0, l + 360, l)
 
 mask = (np.abs(b) <= 10.0)
+
+# Load diffuse gamma-ray map from Platz et al. 2023
+with h5py.File('../JCR/energy_bins.hdf5', 'r') as file:
+    print("Keys: %s" % file.keys())
+    Eg_data=file['geom_avg_bin_energy'][:]
+    Eg_data_lower=file['lower_bin_boundaries'][:]
+    Eg_data_upper=file['upper_bin_boundaries'][:]
+    
+dEg_data=Eg_data_upper-Eg_data_lower
+
+with h5py.File('../JCR/I_dust.hdf5', 'r') as file:
+    print("Keys: %s" % file['stats'].keys())
+    gamma_map_mean=file['stats']['mean'][:]
+    gamma_map_std=file['stats']['standard deviation'][:]
+
+gamma_map_mean*=1.0e-4*4.0*np.pi/dEg_data[:,np.newaxis]
+gamma_map_mean=hp.ud_grade(gamma_map_mean[5,:], nside_out=64)
+gamma_map_mean=hp.reorder(gamma_map_mean, r2n=True)
+gamma_map_mean=gamma_map_mean[np.newaxis,np.newaxis,:] # GeV^-1 cm^-2 s^-1
+gamma_map_mean=jnp.array(gamma_map_mean)
 
 mp = 938.272e6  # eV
 
@@ -55,13 +76,13 @@ ngas_mean = jnp.mean(ngas, axis=0)[jnp.newaxis, :, :]
 
 # Define the properties of the neural network
 N_SAMPLES = 51
-LAYERS = [1, 10, 10, 10, 1]
+LAYERS = [1, 20, 20, 20, 1]
 LEARNING_RATE = 0.005
-N_EPOCHS = 10000
+N_EPOCHS = 10
 epoch_print = N_EPOCHS / 10
 
 # Load the .npz file
-data_WB = np.load('nn.npz')
+data_WB = np.load('nn_20_ana.npz')
 
 # Extract weights, biases, and activation functions
 weight_matrices = [data_WB[f"weight_{i}"] for i in range(len([key for key in data_WB if key.startswith("weight_")]))]
@@ -86,9 +107,11 @@ x_samples = x_samples_raw / x_samples_raw[-1]
 
 # Mock data for testing
 y_sol = 2.0e-9 # jCR.func_gSNR_YUK04(jnp.array([8178.0])) / jnp.exp(y_init)
-y_grtruth = jnp.log((jCR.func_gSNR_YUK04(x_samples_raw * 1.0e3) + 1.0e-9*jnp.exp(-(x_samples_raw-10.0)**2/2.0) + 1.0e-9*jnp.exp(-(x_samples_raw-6.0)**2/0.5)) / (y_sol))
+gSNR_best_fit=jCR.func_gSNR_fit(jnp.array([2.1657154516413e-09,0.4440271097459036,1.3679861897204548,4.093126645363395]),zeta_n,R*1.0e-3,x_samples_raw) 
+y_grtruth = jnp.log(gSNR_best_fit/y_sol) # jnp.log((gSNR_best_fit + 1.0e-9*jnp.exp(-(x_samples_raw-12.0)**2/2.0) + 1.0e-9*jnp.exp(-(x_samples_raw-6.0)**2/0.5)) / (y_sol))
 y_samples_raw = y_grtruth
-y_samples = jnp.log(jCR.func_gamma_map_gSNR(((x_samples_raw.ravel()) * 1.0e3, (jnp.exp(y_samples_raw) * y_sol).ravel()), pars_prop, zeta_n, dXSdEg_Geant4, ngas_mean, drs, points_intr, E))[0, 0, mask]
+# y_samples = jnp.log(jCR.func_gamma_map_gSNR(((x_samples_raw.ravel()) * 1.0e3, (jnp.exp(y_samples_raw) * y_sol).ravel()), pars_prop, zeta_n, dXSdEg_Geant4, ngas_mean, drs, points_intr, E))[0, 0, mask]
+y_samples=jnp.log(gamma_map_mean)[0,0,mask]
 
 # Loss function to compare gamma-ray maps
 def loss_forward(y_guess, y_ref):
@@ -133,17 +156,24 @@ loss_history = []
 gSNR_samples = []
 
 params = (weight_matrices, bias_vectors)
+# plt.scatter(x_samples_raw, jnp.exp(y_samples_raw) * y_sol, label='Samples')
+plt.scatter(x_samples_raw, jnp.exp(network_forward(x_samples, weight_matrices, bias_vectors, activation_functions)) * y_sol, label='Interation 0')
+plt.plot(x_samples_raw, jnp.exp(y_grtruth) * y_sol, 'k--', label='Analytic best fit')
+plt.legend(loc='upper right')
+plt.savefig('Results_nn/nn_epoch_fbf_0.png')
+plt.close()
+
 for epoch in range(N_EPOCHS):
     opt_state, params, loss = update(opt_state, params)
 
     if (epoch + 1) % epoch_print == 0:
         print(f"epoch: {epoch+1}, loss: {loss}")
         weights, biases = params
-        plt.scatter(x_samples_raw, jnp.exp(y_samples_raw) * y_sol, label='Samples')
+        # plt.scatter(x_samples_raw, jnp.exp(y_samples_raw) * y_sol, label='Samples')
         plt.scatter(x_samples_raw, jnp.exp(network_forward(x_samples, weights, biases, activation_functions)) * y_sol, label='Interation %d' % (epoch + 1))
-        plt.plot(x_samples_raw, jnp.exp(y_grtruth) * y_sol, 'k--', label='Ground truth')
+        plt.plot(x_samples_raw, jnp.exp(y_grtruth) * y_sol, 'k--', label='Analytic best fit')
         plt.legend(loc='upper right')
-        plt.savefig('nn_epoch_%d.png' % (epoch + 1))
+        plt.savefig('Results_nn/nn_epoch_fbf_%d.png' % (epoch + 1))
         plt.close()
     
     loss_history.append(loss)
@@ -156,7 +186,7 @@ gamma_fit = jCR.func_gamma_map_gSNR(((x_samples_raw.ravel()) * 1.0e3, (jnp.exp(y
 gamma_grtruth = jCR.func_gamma_map_gSNR(((x_samples_raw.ravel()) * 1.0e3, (jnp.exp(y_grtruth)*y_sol).ravel()), pars_prop, zeta_n, dXSdEg_Geant4, ngas_mean, drs, points_intr, E)
 
 # Save best fit and samples
-np.savez('Results_nn/gSNR_nn.npz', 
+np.savez('Results_nn/gSNR_nn_from_best_fit.npz', 
             rG=np.array(x_samples_raw.ravel()), 
             gSNR=np.array(jnp.exp(y_fit).ravel())*y_sol, 
             gSNR_truth=np.array(jnp.exp(y_grtruth))*y_sol, 
@@ -169,6 +199,6 @@ np.savez('Results_nn/gSNR_nn.npz',
 weights_dict = {f"weight_{i}": np.array(weights[i]) for i in range(len(weights))}
 biases_dict = {f"bias_{i}": np.array(biases[i]) for i in range(len(biases))}
 save_dict = {**weights_dict, **biases_dict}
-np.savez('nn.npz', **save_dict)
+np.savez('nn_from_best_fit.npz', **save_dict)
 
 print('Run time: %.2f seconds' % (time.time() - start_time))

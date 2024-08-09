@@ -104,23 +104,23 @@ def jcompute_coefficients(zeta_n, R):
 def func_gSNR_fit(theta, zeta_n, R, r):
 
     A, B, C, D=theta
-    r_int=jnp.linspace(0.0,R,25000)
-    fr_int=jnp.where(
-        r_int<15.0,
-        A*jnp.power((r_int+B)/(8.178+B),C)*jnp.exp(-D*(r_int-8.5)/9.05),
-        0.0
-    ) 
-    j0_n=j0(zeta_n[:,jnp.newaxis]*r_int[jnp.newaxis,:]/R)
-    coefficients=jnp.trapezoid(r_int[jnp.newaxis,:]*fr_int[jnp.newaxis,:]*j0_n,r_int)
-    coefficients*=(2.0/(R**2*(j1(zeta_n)**2)))
-
-    gSNR=jnp.sum(coefficients[:,jnp.newaxis]*j0(zeta_n[:,jnp.newaxis]*r[jnp.newaxis,:]/R),axis=0)
-
-    # gSNR=jnp.where(
-    #     r<15.0,
-    #     A*jnp.power((r+B)/(8.178+B),C)*jnp.exp(-D*(r-8.178)/9.05),
+    # r_int=jnp.linspace(0.0,R,25000)
+    # fr_int=jnp.where(
+    #     r_int<15.0,
+    #     A*jnp.power((r_int+B)/(8.178+B),C)*jnp.exp(-D*(r_int-8.5)/9.05),
     #     0.0
     # ) 
+    # j0_n=j0(zeta_n[:,jnp.newaxis]*r_int[jnp.newaxis,:]/R)
+    # coefficients=jnp.trapezoid(r_int[jnp.newaxis,:]*fr_int[jnp.newaxis,:]*j0_n,r_int)
+    # coefficients*=(2.0/(R**2*(j1(zeta_n)**2)))
+
+    # gSNR=jnp.sum(coefficients[:,jnp.newaxis]*j0(zeta_n[:,jnp.newaxis]*r[jnp.newaxis,:]/R),axis=0)
+
+    gSNR=jnp.where(
+        r<=15.0,
+        A*jnp.power((r+B)/(8.178+B),C)*jnp.exp(-D*(r-8.178)/9.05),
+        0.0
+    ) 
 
     return gSNR
 
