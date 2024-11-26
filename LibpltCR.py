@@ -7,7 +7,7 @@ import LibjaxCR as jCR
 import jax.numpy as jnp
 
 # Plot the spatial cosmic-ray distribution
-def plot_jEp_GAL(jE, rg, zg):
+def plot_jEp_GAL(jE, rg, zg, to_dir):
 
     fs=22
 
@@ -16,31 +16,32 @@ def plot_jEp_GAL(jE, rg, zg):
 
     # Spatial distribution over the entire grid
     ax1 = fig.add_subplot(gs[0, :])
-    im = ax1.imshow(jE[0,:,:], origin='lower', extent=[rg[0]*1.0e-3, rg[-1]*1.0e-3, zg[0]*1.0e-3, zg[-1]*1.0e-3], cmap='magma')
+    # im = ax1.imshow(jE[20,:,:], origin='lower', extent=[rg[0]*1.0e-3, rg[-1]*1.0e-3, zg[0]*1.0e-3, zg[-1]*1.0e-3], cmap='magma')
+    im = ax1.imshow(jE[20,:,:].T, origin='lower', extent=[rg[0]*1.0e-3, rg[-1]*1.0e-3, zg[0]*1.0e-3, zg[-1]*1.0e-3], cmap='magma')
 
     ## Colourbar
     divider = make_axes_locatable(ax1)
     cax = divider.append_axes("right", size="2%", pad=0.05)
     cbar = plt.colorbar(im, cax=cax)
     cax.set_ylabel(r'$j(E) \, ({\rm GeV^{-1}\, cm^{-2}\, s^{-1}\, sr^{-1}})$')  
-    ax1.set_title(r'$E=10$\,{\rm GeV}')
+    ax1.set_title(r'$E=100$\,{\rm GeV}')
     ax1.set_xlabel(r"$r_{G}\,{\rm [kpc]}$")
     ax1.set_ylabel(r"$z_{G}\,{\rm [kpc]}$")
 
     # Profile over r
     ax2 = fig.add_subplot(gs[1, 0])
-    ax2.plot(rg*1.0e-3, jE[0,:,0], 'r')
-    ax2.set_title(r'$E=10$\,{\rm GeV}\, {\rm and}\, $z_G=0$\,{\rm kpc}')
+    ax2.plot(rg*1.0e-3, jE[20,:,0], 'r')
+    ax2.set_title(r'$E=100$\,{\rm GeV}\, {\rm and}\, $z_G=0$\,{\rm kpc}')
     ax2.set_xlabel(r'$r_{G}\,{\rm [kpc]}$')
     ax2.set_ylabel(r'$j(E) \, ({\rm GeV^{-1}\, cm^{-2}\, s^{-1}\, sr^{-1}})$')
     ax2.set_xlim(rg[0]*1.0e-3,rg[-1]*1.0e-3)
 
     # Profile over z
     ax3 = fig.add_subplot(gs[1, 1])
-    ax3.plot(zg*1.0e-3, jE[0,0,:], 'r')
+    ax3.plot(zg*1.0e-3, jE[20,0,:], 'r')
     # ax3.plot(zg*1.0e-3, fE[0,rg==4000.0,:][0], 'g')
     # ax3.plot(zg*1.0e-3, fE[0,rg==8000.0,:][0], 'k')
-    ax3.set_title(r'$E=10$\,{\rm GeV}\, {\rm and}\, $r_G=0$\,{\rm kpc}')
+    ax3.set_title(r'$E=100$\,{\rm GeV}\, {\rm and}\, $r_G=0$\,{\rm kpc}')
     ax3.set_xlabel(r'$z_{G}\,{\rm [kpc]}$')
     ax3.set_ylabel(r'$f(E) \, ({\rm GeV^{-1}\, cm^{-2}\, s^{-1}\, sr^{-1}})$')
     ax3.set_xlim(zg[0]*1.0e-3,zg[-1]*1.0e-3)
@@ -48,7 +49,32 @@ def plot_jEp_GAL(jE, rg, zg):
     fig.tight_layout(pad=1.0)
     fig.subplots_adjust(hspace=0.05, wspace=0.15, top=1.1, bottom=0.1, left=0.05, right=0.95)
     
-    plt.savefig("fg_jEp_GAL.png", dpi=600)
+    plt.savefig("%s_fg_jEp_GAL.png" % to_dir, dpi=600)
+    plt.close()
+
+# Plot the spatial cosmic-ray distribution
+def plot_jEp_rG(jE_truth, jE_mean, jE_samples, rg, to_dir):
+
+    fs=22
+
+    N_samples, _, _, _ = jE_samples.shape
+
+    fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+    ax.plot(rg*1.0e-3, jE_truth[20,:,0], 'r', label='Mock data')
+    ax.plot(rg*1.0e-3, jE_mean[20,:,0], 'k', label='Nifty')
+    for i in range(N_samples):
+        ax.plot(rg*1.0e-3, jE_samples[i,20,:,0], 'g:')
+
+    ax.set_title(r'$E=100$\,{\rm GeV}\, {\rm and}\, $z_G=0$\,{\rm kpc}')
+    ax.set_xlabel(r'$r_{G}\,{\rm [kpc]}$')
+    ax.set_ylabel(r'$j(E) \, ({\rm GeV^{-1}\, cm^{-2}\, s^{-1}\, sr^{-1}})$')
+    # ax.set_xlim(rg[0]*1.0e-3,rg[-1]*1.0e-3)
+    ax.set_xlim(0,15)
+    # ax.set_ylim(1.0e-5,1.0e-3)
+    # ax.set_yscale('log')
+    ax.legend(loc='upper right', prop={"size":fs})
+ 
+    plt.savefig("%s_fg_jEp_rG.png" % to_dir, dpi=600)
     plt.close()
 
 # Plot the local spectrum

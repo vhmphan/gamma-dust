@@ -185,12 +185,12 @@ l=np.where(l<0,l+360,l)
 
 mask=(np.abs(b)<20.0) 
 qg=gamma_map_mean[0,0,:]/(np.mean(NHImap+2.0*NH2map,axis=0)*4.0*np.pi)
-qg[mask]=np.nan
-print(np.mean(qg))
+# qg[mask]=np.nan
+# print(np.mean(qg))
 
 projview(
     np.log10(qg), 
-    title=r'Local gamma-ray emissivity at $E_\gamma=10$ GeV',
+    title=r'Ratio between gamma-ray intensity at $E_\gamma=10$ GeV and gas column density',
     coord=["G"], cmap='magma',
     min=-30, max=-29,
     cbar_ticks=[-30, -29.5, -29],

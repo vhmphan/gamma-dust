@@ -2,11 +2,15 @@
 # SPDX-License-Identifier: GPL-2.0+ OR BSD-2-Clause
 # Demonstration of the non-parametric correlated field model in NIFTy.re
 
-# The Model
 import os
 os.environ['JAX_ENABLE_X64'] = 'True'
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '/Users/vphan/Minh/Code/Gas3D/gamma-dust')))
+
+# import os
+# os.environ['JAX_ENABLE_X64'] = 'True'
+# import sys
+# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '/content/drive/MyDrive/Colab/gamma-dust/')))
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -31,45 +35,61 @@ from healpy.newvisufunc import projview, newprojplot
 
 start_time = time.time()
 
+def func_gSNR_fit(theta, r):
+    A, B, C, D = theta
+
+    gSNR = jnp.where(
+        r <= 15.0,
+        A * jnp.power((r + B) / (8.178 + B), C) * jnp.exp(-D * (r - 8.178) / 9.05),
+        0.0
+    )
+    
+    return gSNR
+
+
 mp = 938.272e6 # eV -> Proton mass
 
 l, b=hp.pixelfunc.pix2ang(64, np.arange(12*64*64), lonlat=True, nest=True)
 l=np.where(l<0,l+360,l)
 
-mask=(np.abs(b)<=30.0) 
+mask=(np.abs(b)<=10.0) 
 
 # Load diffuse gamma-ray map from Platz et al. 2023
-with h5py.File('energy_bins.hdf5', 'r') as file:
-    print("Keys: %s" % file.keys())
-    Eg_data=file['geom_avg_bin_energy'][:]
-    Eg_data_lower=file['lower_bin_boundaries'][:]
-    Eg_data_upper=file['upper_bin_boundaries'][:]
-    
-dEg_data=Eg_data_upper-Eg_data_lower
+def load_gamma():
 
-with h5py.File('I_dust.hdf5', 'r') as file:
-    print("Keys: %s" % file['stats'].keys())
-    gamma_map_mean=file['stats']['mean'][:]
-    gamma_map_std=file['stats']['standard deviation'][:]
+    with h5py.File('energy_bins.hdf5', 'r') as file:
+        print("Keys: %s" % file.keys())
+        Eg_data=file['geom_avg_bin_energy'][:]
+        Eg_data_lower=file['lower_bin_boundaries'][:]
+        Eg_data_upper=file['upper_bin_boundaries'][:]
+        
+    dEg_data=Eg_data_upper-Eg_data_lower
 
-gamma_map_mean*=1.0e-4*4.0*np.pi/dEg_data[:,np.newaxis]
-gamma_map_mean=hp.ud_grade(gamma_map_mean[5,:], nside_out=64)
-gamma_map_mean=hp.reorder(gamma_map_mean, r2n=True)
-gamma_map_mean=gamma_map_mean[np.newaxis,np.newaxis,:] # GeV^-1 cm^-2 s^-1
-gamma_map_mean=jnp.array(gamma_map_mean)
+    with h5py.File('I_dust.hdf5', 'r') as file:
+        print("Keys: %s" % file['stats'].keys())
+        gamma_map_mean=file['stats']['mean'][:]
+        gamma_map_std=file['stats']['standard deviation'][:]
 
-gamma_map_std*=1.0e-4*4.0*np.pi/dEg_data[:,np.newaxis]
-gamma_map_std=hp.ud_grade(gamma_map_std[5,:], nside_out=64)
-gamma_map_std=hp.reorder(gamma_map_std, r2n=True)
-gamma_map_std=gamma_map_std[np.newaxis,np.newaxis,:] # GeV^-1 cm^-2 s^-1
-gamma_map_std=jnp.array(gamma_map_std)
+    gamma_map_mean*=1.0e-4*4.0*np.pi/dEg_data[:,np.newaxis]
+    gamma_map_mean=hp.ud_grade(gamma_map_mean[5,:], nside_out=64)
+    gamma_map_mean=hp.reorder(gamma_map_mean, r2n=True)
+    gamma_map_mean=gamma_map_mean[np.newaxis,np.newaxis,:] # GeV^-1 cm^-2 s^-1
+    gamma_map_mean=jnp.array(gamma_map_mean)
 
-def plot_data(gamma_map_mean, gamma_map_std):
+    gamma_map_std*=1.0e-4*4.0*np.pi/dEg_data[:,np.newaxis]
+    gamma_map_std=hp.ud_grade(gamma_map_std[5,:], nside_out=64)
+    gamma_map_std=hp.reorder(gamma_map_std, r2n=True)
+    gamma_map_std=gamma_map_std[np.newaxis,np.newaxis,:] # GeV^-1 cm^-2 s^-1
+    gamma_map_std=jnp.array(gamma_map_std)
+
+    return gamma_map_mean, gamma_map_std
+
+def plot_data(gamma_map_mean, gamma_map_std, dorm):
     fig=plt.figure(figsize=(18, 5))
 
     projview(
         np.log10(gamma_map_mean[0,0,:]), 
-        title=r'Iteration gamma-ray map at $E_\gamma=10$ GeV',
+        title=r'Mean gamma-ray map at $E_\gamma=10$ GeV',
         coord=["G"], cmap='magma',
         # min=-8.5, max=-4.5,
         cbar_ticks=[-8.5, -6.5, -4.5],
@@ -84,7 +104,7 @@ def plot_data(gamma_map_mean, gamma_map_std):
 
     projview(
         np.log10(gamma_map_std[0,0,:]),
-        title=r'Iteration gamma-ray map at $E_\gamma=10$ GeV',
+        title=r'Standard deviation gamma-ray map at $E_\gamma=10$ GeV',
         coord=["G"], cmap='magma',
         # min=-8.5, max=-4.5,
         cbar_ticks=[-8.5, -6.5, -4.5],
@@ -97,21 +117,46 @@ def plot_data(gamma_map_mean, gamma_map_std):
         sub=122
     )
 
-    plt.savefig('Results_nifty/fg_gamma-map_nifty_2.png', dpi=300)
+    plt.savefig('Results_nifty_new/fg_data_%s.png' % dorm, dpi=300)
     plt.close()
 
-    fig, ax = plt.subplots(1, 1, figsize=(12, 6))
+    # fig, ax = plt.subplots(1, 1, figsize=(12, 6))
 
-    ax.plot((np.log(gamma_map_mean*1.0e8).ravel()), color='red', alpha=1)
-    ax.plot((gamma_map_std/gamma_map_mean).ravel(), 'k:', alpha=0.2)
+    # ax.plot((np.log(gamma_map_mean*1.0e8).ravel()), color='red', alpha=1)
+    # ax.plot((gamma_map_std/gamma_map_mean).ravel(), 'k:', alpha=0.2)
 
-    # ax[0].set_ylabel(r'$g_{\rm SNR}\, {\rm (pc^{-2})}$')
-    # ax[0].set_xlabel(r'$R\, {\rm (pc)}$')
+    # # ax[0].set_ylabel(r'$g_{\rm SNR}\, {\rm (pc^{-2})}$')
+    # # ax[0].set_xlabel(r'$R\, {\rm (pc)}$')
 
-    # ax.set_yscale('log')
+    # # ax.set_yscale('log')
+
+    # fig.tight_layout()
+    # fig.savefig("Results_nifty/data_mock.png", dpi=400)
+
+def plot_gSNR(rG, gSNR_truth, dorm):
+    # Plotting mock gSNR 
+    fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+ 
+    key = jr.PRNGKey(42)
+    for i in range(50):
+        key, subkey = jr.split(key)
+        pos_test = jft.random_like(subkey, signal_response.domain)
+        ax.plot(signal_response.rg_SN, signal_response.func_gSNR(pos_test), c='C5', alpha=1.0)
+        ax.plot(signal_response.rg_SN, np.sum(signal_response.func_coef(pos_test)[:,np.newaxis]*sp.special.j0(zeta_n[:,np.newaxis]*signal_response.rg_SN[np.newaxis,:]/20000.0), axis=0), 'g:')
+
+    # Plot mock ground truth or best-fit analytic
+    if(dorm=='mock'):
+        ax.plot(rG, gSNR_truth, 'r--', alpha=1.0, lw=3, label='Mock data')
+    else:
+        ax.plot(rG, func_gSNR_fit(jnp.array([2.1657154516413e-09, 0.4440271097459036, 1.3679861897204548, 4.093126645363395]), rG*1.0e-3), c='red', lw=3, alpha=1.0, label='Best fit analytic')
+
+    ax.set_ylabel(r'$g_{\rm SNR}\, {\rm (pc^{-2})}$')
+    ax.set_xlabel(r'$R\, {\rm (pc)}$')
+
+    ax.legend(loc='upper right', prop={"size":22})
 
     fig.tight_layout()
-    fig.savefig("Results_nifty/data_test.png", dpi=400)
+    fig.savefig("Results_nifty_new/test_gSNR_%s.png" % dorm, dpi=400)
 
 # Find the first 'num_zeros' zeros of the zeroth order Bessel function J0
 num_zeros=100
@@ -128,9 +173,6 @@ xiSNR=0.065 # -> Fracion of SNR kinetic energy into CRs
 # Transport parameter
 u0=7.0 # km/s -> Advection speed
 
-# Combine all parameters for proagation
-pars_prop=jnp.array([R, L, alpha, xiSNR, u0])
-
 # Define cosmic-ray grid and diffusion coefficient
 E=jnp.logspace(10.0,14.0,81) # eV 
 p=jnp.sqrt((E+mp)**2-mp**2)  # eV
@@ -139,13 +181,16 @@ Diff=1.1e28*(365.0*86400.0/(3.08567758e18)**2)*vp*(p/1.0e9)**0.63/(1.0+(p/312.0e
 
 # Injection spectrum of sources
 xmin=jnp.sqrt((1.0e8+mp)**2-mp**2)/mp
-xmax=jnp.sqrt((1.0e14+mp)**2-mp**2)/mp
+xmax=jnp.sqrt((1.0e15+mp)**2-mp**2)/mp
 x=jnp.logspace(jnp.log10(xmin),jnp.log10(xmax),5000)
 Gam=jnp.trapezoid(x**(2.0-alpha)*(jnp.sqrt(x**2+1.0)-1.0),x)
 
 RSNR=0.03 # yr^-1 -> SNR rate
 ENSR=1.0e51*6.242e+11 # eV -> Average kinetic energy of SNRs
 QE=RSNR*vp*3.0e10*(xiSNR*ENSR/(mp**2*vp*Gam))*(p/mp)**(2.0-alpha)
+
+# Combine all parameters for proagation
+pars_prop=jnp.array([R, L, alpha, xiSNR, u0, Gam])
 
 # Bessel functions
 r_int=jnp.linspace(0.0,R,25000)
@@ -169,9 +214,13 @@ dims = (76, ) # Number of spatial grid points in the reconstructed gSNR
 
 cf_zm = dict(offset_mean=0.0, offset_std=(1e-3, 1e-4))
 cf_fl = dict(
+    # fluctuations=(1e-1, 5e-3),
+    # loglogavgslope=(-5, 1e-2),
+    # flexibility=(1e0, 5e-1),
+    # asperity=(5e-1, 5e-2),
     fluctuations=(1e-1, 5e-3),
     loglogavgslope=(-5, 1e-2),
-    flexibility=(1e0, 5e-1),
+    flexibility=(5.0, 5e-1),
     asperity=(5e-1, 5e-2),
 )
 cfm = jft.CorrelatedFieldMaker("cf")
@@ -270,47 +319,40 @@ class Signal(jft.Model):
 signal_response = Signal(correlated_field, scaling)
 
 key, subkey = jr.split(key)
-pos_truth = jft.random_like(subkey, signal_response.domain)
+# pos_truth = jft.random_like(subkey, signal_response.domain)
+# gSNR_truth = signal_response.func_gSNR(pos_truth) 
+gSNR_truth = func_gSNR_fit(jnp.array([2.1657154516413e-09, 0.4440271097459036, 1.3679861897204548, 4.093126645363395]), signal_response.rg_SN*1.0e-3)
 
-# signal_response_truth=signal_response(pos_truth)
-# keys = jr.split(key, Npix)
-# noise_truth=0.1*jnp.ones_like(signal_response_truth) # jnp.array([jr.normal(keys[i]) * 0.1 for i in range(Npix)])
-# plot_data(signal_response.func_gamma_map(pos_truth),0.1*signal_response.func_gamma_map(pos_truth))
+dorm='mock'
 
-# # Plotting gSNR and power spectrum
-# fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+if(dorm=='mock'):
+    gSNR_truth += 16.0e-10*jnp.exp(-(signal_response.rg_SN*1.0e-3-6.0)**2/1.0)
+    gSNR_truth += 8.0e-10*jnp.exp(-(signal_response.rg_SN*1.0e-3-12.0)**2/0.8)
+    gSNR_truth += -12.0e-10*jnp.exp(-(signal_response.rg_SN*1.0e-3-4.0)**2/1.0)
 
-# # Plot mock data
-# ax.plot(signal_response.rg_SN, signal_response.func_gSNR(pos_truth), c='C5', alpha=1.0, label='Mock data')
-# ax.plot(signal_response.rg_SN, np.sum(signal_response.func_coef(pos_truth)[:,np.newaxis]*sp.special.j0(zeta_n[:,np.newaxis]*signal_response.rg_SN[np.newaxis,:]/20000.0), axis=0), 'g:')
-# ax.plot(signal_response.rg_SN, jCR.func_gSNR_YUK04(signal_response.rg_SN), 'r-', alpha=1.0, label='YUK 04')
+    gamma_mock_mean = jCR.func_gamma_map_gSNR((signal_response.rg_SN, gSNR_truth), pars_prop, zeta_n, dXSdEg_Geant4, ngas_mean, drs, points_intr, E)
+    gamma_mock_std = jnp.std(jCR.func_gamma_map_gSNR((signal_response.rg_SN, gSNR_truth), pars_prop, zeta_n, dXSdEg_Geant4, ngas, drs, points_intr, E), axis=0)[jnp.newaxis,:,:]
 
-# for i in range(10):
-#     key, subkey = jr.split(key)
-#     pos_test = jft.random_like(subkey, signal_response.domain)
-#     ax.plot(signal_response.rg_SN, signal_response.func_gSNR(pos_test), c='C5', alpha=1.0)
-#     ax.plot(signal_response.rg_SN, np.sum(signal_response.func_coef(pos_test)[:,np.newaxis]*sp.special.j0(zeta_n[:,np.newaxis]*signal_response.rg_SN[np.newaxis,:]/20000.0), axis=0), 'g:')
+    gamma_map_mean, gamma_map_std = gamma_mock_mean, gamma_mock_std
+else:
+    gamma_map_mean, gamma_map_std = load_gamma()
 
-
-# ax.set_ylabel(r'$g_{\rm SNR}\, {\rm (pc^{-2})}$')
-# ax.set_xlabel(r'$R\, {\rm (pc)}$')
-
-# ax.legend(loc='upper left', prop={"size":22})
-
-# fig.tight_layout()
-# fig.savefig("Results_nifty/results_gSNR_test_test_5_2.png", dpi=400)
-
+plot_gSNR(signal_response.rg_SN, gSNR_truth, dorm)
+plot_data(gamma_map_mean, gamma_map_std, dorm)
 
 signal_response_truth = jnp.log(gamma_map_mean*1.0e8)[0,0,mask]
 noise_truth = (gamma_map_std/gamma_map_mean)[0,0,mask]
-plot_data(gamma_map_mean,gamma_map_std)
 
-lh = jft.Gaussian(signal_response_truth, noise_cov_inv=1.0/noise_truth**2).amend(signal_response)
+lh = jft.Gaussian(signal_response_truth, noise_cov_inv=lambda x: x/noise_truth**2).amend(signal_response)
 
 # Now lets run the main inference scheme:
-n_vi_iterations = 6
+n_vi_iterations = 2
 delta = 1e-4
-n_samples = 11
+n_samples = 5
+
+print('Data for nifty -> %s' % dorm)
+print('Iterations = %d' % n_vi_iterations)
+print('Samples    = %d' % n_samples)
 
 key, k_i, k_o = jr.split(key, 3)
 # NOTE, changing the number of samples always triggers a resampling even if
@@ -359,7 +401,7 @@ q_n_sample = jnp.array(tuple(signal_response.func_coef(s) for s in samples))
 gamma_sample = jnp.array(tuple(signal_response.func_gamma_map(s) for s in samples))
 
 # Save the gamma-ray maps in a .npz file
-# np.savez('Results_nifty/gSNR_sample_3.npz', rG=np.array(rG), gSNR=np.array(gSNR_sample), spectrum_gSNR=np.array(spectrum_gSNR_sample), gSNR_truth=np.array(signal_response.func_gSNR(pos_truth)), q_n=np.array(q_n_sample), gamma=np.array(gamma_sample), gamma_truth=np.array(signal_response.func_gamma_map(pos_truth)))
-np.savez('Results_nifty/gSNR_sample_4.npz', rG=np.array(rG), gSNR=np.array(gSNR_sample), spectrum_gSNR=np.array(spectrum_gSNR_sample), gSNR_truth=np.array(signal_response.func_gSNR(pos_truth)), q_n=np.array(q_n_sample), gamma=np.array(gamma_sample), gamma_truth=np.array(gamma_map_mean))
+n_samples, _ = gSNR_sample.shape
+np.savez('Results_nifty_new/gSNR_s%d_b<10_i%d_%s.npz' % (n_samples, n_vi_iterations, dorm), rG=np.array(rG), gSNR=np.array(gSNR_sample), spectrum_gSNR=np.array(spectrum_gSNR_sample), gSNR_truth=gSNR_truth, q_n=np.array(q_n_sample), gamma=np.array(gamma_sample), gamma_truth=np.array(gamma_map_mean))
 
 print('Runtime: ',time.time()-start_time,'s')
