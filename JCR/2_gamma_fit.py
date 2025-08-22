@@ -169,7 +169,7 @@ for i in range(N):
 
 print('A_org=',1.0/5.95828e+8,'B_org=',0.55,'C_org=',1.64,'D_org=',4.01)
 
-np.savetxt("scan_pars.txt", np.array(scan_pars), header="chi2 norm r_off index exp_arg_norm")
+np.savetxt("scan_pars_test.txt", np.array(scan_pars), header="chi2 norm r_off index exp_arg_norm")
 
 print('Runtime:',time.time()-start_time,'seconds')
 

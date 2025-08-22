@@ -59,18 +59,20 @@ def plot_jEp_rG(jE_truth, jE_mean, jE_samples, rg, to_dir):
 
     N_samples, _, _, _ = jE_samples.shape
 
-    fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-    ax.plot(rg*1.0e-3, jE_truth[20,:,0], 'r', label='Mock data')
-    ax.plot(rg*1.0e-3, jE_mean[20,:,0], 'k', label='Nifty')
+    fig, ax = plt.subplots(1, 1, figsize=(10, 8))
+    # ax.plot(rg*1.0e-3, jE_truth[20,:,0]*1.0e4, 'r', label='Mock data')
+    ax.plot(rg*1.0e-3, jE_mean[20,:,0]*1.0e4, 'k', label='IFT mean')
     for i in range(N_samples):
-        ax.plot(rg*1.0e-3, jE_samples[i,20,:,0], 'g:')
+        ax.plot(rg*1.0e-3, jE_samples[i,20,:,0]*1.0e4, 'g:')
 
-    ax.set_title(r'$E=100$\,{\rm GeV}\, {\rm and}\, $z_G=0$\,{\rm kpc}')
-    ax.set_xlabel(r'$r_{G}\,{\rm [kpc]}$')
-    ax.set_ylabel(r'$j(E) \, ({\rm GeV^{-1}\, cm^{-2}\, s^{-1}\, sr^{-1}})$')
+    ax.set_title(r'$E=100$\,{\rm GeV}\, {\rm and}\, $z_G=0$\,{\rm kpc}', fontsize=fs)
+    ax.set_xlabel(r'$r_{G}\,{\rm [kpc]}$', fontsize=fs)
+    ax.set_ylabel(r'$j(E) \, ({10^{4}\, \rm GeV^{-1}\, cm^{-2}\, s^{-1}\, sr^{-1}})$', fontsize=fs)
+    for label_ax in (ax.get_xticklabels() + ax.get_yticklabels()):
+        label_ax.set_fontsize(fs)
     # ax.set_xlim(rg[0]*1.0e-3,rg[-1]*1.0e-3)
     ax.set_xlim(0,15)
-    # ax.set_ylim(1.0e-5,1.0e-3)
+    ax.set_ylim(0.0,3.0)
     # ax.set_yscale('log')
     ax.legend(loc='upper right', prop={"size":fs})
  
@@ -80,7 +82,7 @@ def plot_jEp_rG(jE_truth, jE_mean, jE_samples, rg, to_dir):
 # Plot the local spectrum
 def plot_jEp_LOC(theta, pars_prop, zeta_n, Rsol):
 
-    fs=22
+    fs=25
 
     mp=938.272e6 # eV
     E=np.logspace(8.0,14.0,61)
@@ -92,7 +94,7 @@ def plot_jEp_LOC(theta, pars_prop, zeta_n, Rsol):
     n=2
 
     ax.plot(E,E**n*jE_loc,'k-',linewidth=3,label=r'${\rm Local\, Spectrum}$')
-    ax.plot(E,E**n*jE_loc/1.3,'r-',linewidth=3,label=r'${\rm Local\, Spectrum}$')
+    # ax.plot(E,E**n*jE_loc/1.3,'r-',linewidth=3,label=r'${\rm Local\, Spectrum}$')
 
     # Read data of CRDB file
     # AMS data
@@ -137,5 +139,5 @@ def plot_jEp_LOC(theta, pars_prop, zeta_n, Rsol):
     ax.legend(loc='lower left', prop={"size":fs})
     ax.grid(linestyle='--')
 
-    plt.savefig("fg_jEp_LOC.png")
+    plt.savefig("Results_ana/fg_jEp_LOC.png")
     plt.close()

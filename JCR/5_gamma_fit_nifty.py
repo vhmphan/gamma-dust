@@ -64,6 +64,7 @@ def load_gamma():
         Eg_data_upper=file['upper_bin_boundaries'][:]
         
     dEg_data=Eg_data_upper-Eg_data_lower
+    print("Energy bin of input gamma-ray map Eg = %.2f GeV (between %.2f and %.2f GeV)" % (Eg_data[5], Eg_data_lower[5], Eg_data_upper[5]))
 
     with h5py.File('I_dust.hdf5', 'r') as file:
         print("Keys: %s" % file['stats'].keys())
@@ -221,7 +222,7 @@ cf_fl = dict(
     fluctuations=(1e-1, 5e-3),
     loglogavgslope=(-5, 1e-2),
     flexibility=(5.0, 5e-1),
-    asperity=(5e-1, 5e-2),
+    # asperity=(5e-1, 5e-2),
 )
 cfm = jft.CorrelatedFieldMaker("cf")
 cfm.set_amplitude_total_offset(**cf_zm)
@@ -323,7 +324,7 @@ key, subkey = jr.split(key)
 # gSNR_truth = signal_response.func_gSNR(pos_truth) 
 gSNR_truth = func_gSNR_fit(jnp.array([2.1657154516413e-09, 0.4440271097459036, 1.3679861897204548, 4.093126645363395]), signal_response.rg_SN*1.0e-3)
 
-dorm='mock'
+dorm='dtM2'
 
 if(dorm=='mock'):
     gSNR_truth += 16.0e-10*jnp.exp(-(signal_response.rg_SN*1.0e-3-6.0)**2/1.0)
@@ -334,11 +335,14 @@ if(dorm=='mock'):
     gamma_mock_std = jnp.std(jCR.func_gamma_map_gSNR((signal_response.rg_SN, gSNR_truth), pars_prop, zeta_n, dXSdEg_Geant4, ngas, drs, points_intr, E), axis=0)[jnp.newaxis,:,:]
 
     gamma_map_mean, gamma_map_std = gamma_mock_mean, gamma_mock_std
+    print(gamma_map_mean.shape)
+if(dorm=='Fdif'):
+    FERMI_diffuse_map=np.load("I_diff_hp_13GeV.npy")
+    gamma_map_mean=hp.ud_grade(FERMI_diffuse_map, nside_out=64, order_in="NESTED", order_out="NESTED")[np.newaxis, np.newaxis, :]
+    gamma_map_std=0.05*gamma_map_mean
 else:
     gamma_map_mean, gamma_map_std = load_gamma()
-
-plot_gSNR(signal_response.rg_SN, gSNR_truth, dorm)
-plot_data(gamma_map_mean, gamma_map_std, dorm)
+    gamma_map_std *= 5.0
 
 signal_response_truth = jnp.log(gamma_map_mean*1.0e8)[0,0,mask]
 noise_truth = (gamma_map_std/gamma_map_mean)[0,0,mask]
@@ -350,6 +354,10 @@ n_vi_iterations = 2
 delta = 1e-4
 n_samples = 5
 
+plot_gSNR(signal_response.rg_SN, gSNR_truth, '%s_s%d_i%d' % (dorm, n_samples, n_vi_iterations))
+plot_data(gamma_map_mean, gamma_map_std, '%s_s%d_i%d' % (dorm, n_samples, n_vi_iterations))
+
+print(gamma_map_mean.shape)
 print('Data for nifty -> %s' % dorm)
 print('Iterations = %d' % n_vi_iterations)
 print('Samples    = %d' % n_samples)

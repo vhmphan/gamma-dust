@@ -17,6 +17,7 @@ import h5py
 import optax
 from jax import jit
 import matplotlib.cm as cm
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 # Load diffuse gamma-ray map from Platz et al. 2023
 with h5py.File('energy_bins.hdf5', 'r') as file:
@@ -97,11 +98,11 @@ def plot_gamma_map(i, gamma_map_theta, gamma_map):
     fig.tight_layout(pad=1.0)
     fig.subplots_adjust(hspace=0.05, wspace=0.15, top=1.1, bottom=0.1, left=0.05, right=0.95)
 
-    # plt.savefig('fg_gamma-map_FERMIQGSJET_%d.png' % i, dpi=300)
-    plt.savefig('fg_gamma-map_FERMIQGSJET_bestfit_1.png', dpi=300)
+    plt.savefig('Results_ana/fg_gamma-map_FERMIQGSJET_%d.png' % i, dpi=300)
+    # plt.savefig('Results_ana/fg_gamma-map_FERMIQGSJET_bestfit_1.png', dpi=300)
     plt.close()
 
-fs=22
+fs=25
 
 # Record the starting time
 start_time=time.time()
@@ -145,8 +146,11 @@ print(theta[chi2==np.min(chi2),:])
 N=len(chi2)
 color=cm.magma(np.linspace(0, 1, N))
 
-r_data=jnp.linspace(0,20,100)
+r_data=jnp.linspace(0.0,20.0,10001)
+dr_data=jnp.append(jnp.diff(r_data), 0.0)
 gSNR_data=jCR.func_gSNR_YUK04(r_data*1.0e3)
+print(dr_data[1], dr_data[-1])
+print('hj',jnp.sum(2.0*jnp.pi*r_data*gSNR_data*dr_data)*1.0e6)
 
 fig=plt.figure(figsize=(10, 8))
 ax=plt.subplot(111)
@@ -157,7 +161,7 @@ ax.plot(r_data,gSNR_data,label='Yusifov et al. 2004',color='red',lw=3)
 print(np.argmin(chi2))
 
 for i in range(N):
-    if((i%100==0)):
+    if(((i%100==0)) & (i>0)):
         gamma_map_theta=jCR.func_gamma_map_fit(jnp.array(theta[i,:]),pars_prop,zeta_n,dXSdEg_Geant4,ngas_mean,drs,points_intr,E)
         plot_gamma_map(i,gamma_map_theta,gamma_map_mean)
         print('i=%d -> A_fit=' %i,theta[i][0],'B_fit=',theta[i][1],'C_fit=',theta[i][2],'D_fit=',theta[i][3])
@@ -176,14 +180,15 @@ for label_ax in (ax.get_xticklabels() + ax.get_yticklabels()):
 ax.legend(loc='upper right', prop={"size":fs})
 ax.grid(linestyle='--')
 ax.set_xticks([0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
-# ax.set_xlim(0,20)
+ax.set_xlim(0,14)
 # ax.set_ylim(0.0,5.0e-9)
 
-plt.savefig('fg_gSNR_gamma_FERMI_QGSJET_1.png')
+plt.savefig('Results_ana/fg_gSNR_gamma_FERMI_QGSJET_1.png')
 plt.close()
 
 Rsol=8178.0
-fCR.plot_jEp_LOC(theta[np.argmin(chi2),:],pars_prop,zeta_n,Rsol)
+fCR.plot_jEp_LOC(theta[0,:],pars_prop,zeta_n,Rsol)
+# fCR.plot_jEp_LOC(theta[np.argmin(chi2),:],pars_prop,zeta_n,Rsol)
 
 l, b=hp.pixelfunc.pix2ang(64, np.arange(12*64*64), lonlat=True, nest=True)
 l=np.where(l<0,l+360,l)
@@ -242,5 +247,39 @@ ax.set_title(r'Gamma-ray intensity integrated over $|b|\leq 10^\circ$',fontsize=
 ax.legend(loc='upper left', prop={"size":fs})
 ax.grid(linestyle='--')
 
-plt.savefig("fg_Ig_lon.png")
+plt.savefig("Results_ana/fg_Ig_lon.png")
 plt.close()
+
+x_1D = np.linspace(-10, 10, 501)
+y_1D = np.linspace(-10, 10, 501)
+x, y = np.meshgrid(x_1D, y_1D)
+
+# Compute r = sqrt(x^2 + y^2)
+r = np.sqrt(x**2 + y**2)
+print(r[25,:])
+print(jCR.func_gSNR_YUK04(0.0), jCR.func_gSNR_YUK04(3.0))
+gSNR=jCR.func_gSNR_YUK04(r*1.0e3)
+
+# Plot using ax.imshow
+fig, ax = plt.subplots(figsize=(9, 8))
+im = ax.imshow(
+    gSNR*1.0e8, extent=[-10, 10, -10, 10], origin='lower', cmap='Greys', aspect='equal', vmin=0, vmax=0.5
+)
+
+# Create a divider for the color bar to match the height of the plot
+divider = make_axes_locatable(ax)
+cax = divider.append_axes("right", size="5%", pad=0.1)
+
+# Add the color bar
+cbar = plt.colorbar(im, cax=cax)
+cbar.set_label(r'$g(r_{ G}, \phi_{ G})\,{\rm (10^{-2}\, kpc^{-2})}$', fontsize=fs)  # Replace with your desired label
+cbar.ax.tick_params(labelsize=fs)
+
+# Set axis labels and ticks
+ax.set_xlabel(r'$x\,{(\rm kpc)}$', fontsize=fs)
+ax.set_ylabel(r'$y\,{(\rm kpc)}$', fontsize=fs)
+ax.set_xticks([-10, -5, 0, 5, 10])
+ax.set_yticks([-10, -5, 0, 5, 10])
+ax.tick_params(axis='both', which='major', labelsize=fs)
+
+plt.savefig('Results_ana/fg_gSNR_2D.png')

@@ -85,7 +85,7 @@ def plot_gamma_map(gamma_map_theta, gamma_map_mean, dorm):
     fig.tight_layout(pad=1.0)
     fig.subplots_adjust(hspace=0.05, wspace=0.15, top=1.1, bottom=0.1, left=0.05, right=0.95)
 
-    plt.savefig('Results_nifty/fg_gamma-map_QGSJET_%s.png' % dorm, dpi=300)
+    plt.savefig('Results_nifty_new/fg_gamma-map_QGSJET_%s.png' % dorm, dpi=300)
     plt.close()
 
 def plot_gamma_l(gamma_map_theta, gamma_map_mean, dorl, dorm):
@@ -137,8 +137,8 @@ def plot_gamma_l(gamma_map_theta, gamma_map_mean, dorl, dorm):
     # ax.set_yscale('log')
     ax.set_xlabel(r'$l \,{\rm (degree)}$',fontsize=fs)
     ax.set_ylabel(r'$\int \phi(E_\gamma, l, b){\rm d}b\, ({\rm GeV}^{-1}\, {\rm cm}^{-2}\, {\rm s}^{-2})$',fontsize=fs)
-    for label_axd in (ax.get_xticklabels() + ax.get_yticklabels()):
-        label_axd.set_fontsize(fs)
+    for label_ax in (ax.get_xticklabels() + ax.get_yticklabels()):
+        label_ax.set_fontsize(fs)
     ax.set_xlim(-180,180)
     if(dorl=='disk'):
         ax.set_ylim(0.0,1.0e-5)
@@ -149,36 +149,40 @@ def plot_gamma_l(gamma_map_theta, gamma_map_mean, dorl, dorm):
     ax.legend(loc='upper right', prop={"size":fs})
     ax.grid(linestyle='--')
 
-    plt.savefig("Results_nifty/fg_Ig_lon_%s_%s.png" % (dorl, dorm))
+    plt.savefig("Results_nifty_new/fg_Ig_lon_%s_%s_s%d_i%d.png" % (dorl, dorm, n_samples, n_vi_iterations))
     plt.close()
 
 def plot_gSNR(rG, gSNR_truth, gSNR_sample, dorm):
     # Plotting gSNR and power spectrum
-    fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+    fig, ax = plt.subplots(1, 2, figsize=(16, 8))
 
     # Plot mock data
-    ax[0].plot(rG, gSNR_truth, c='C5', alpha=1.0, label='Mock data')
+    # if(dorm=='mock'):
+    # ax[0].plot(rG*1.0e-3, gSNR_truth, c='C5', alpha=1.0, label='Mock data')
+    ax[0].plot(rG*1.0e-3, jCR.func_gSNR_YUK04(rG), c='C5', alpha=1.0, label='Yusifov 2004')
 
     # # Test Bessel expansion
     # num_zeros=100
     # zeta_n=sp.special.jn_zeros(0, num_zeros)
 
     # for i in range(n_samples):
-    #     ax[0].plot(rG, np.sum(q_n_sample[i,:,np.newaxis]*sp.special.j0(zeta_n[:,np.newaxis]*rG/20000.0), axis=0), 'k:')
+    #     ax[0].plot(rG*1.0e-3, np.sum(q_n_sample[i,:,np.newaxis]*sp.special.j0(zeta_n[:,np.newaxis]*rG/20000.0), axis=0), 'k:')
 
     # Plot samples and mean 
     for i in range(n_samples):
-        ax[0].plot(rG, gSNR_sample[i,:], 'k:', alpha=0.5)
+        ax[0].plot(rG*1.0e-3, gSNR_sample[i,:], 'k:', alpha=0.5)
 
-    ax[0].plot(rG, np.mean(gSNR_sample, axis=0), c='red', alpha=1)
-    # ax[0].fill_between(rG, np.mean(gSNR_sample, axis=0)+np.std(gSNR_sample, axis=0), np.mean(gSNR_sample, axis=0)-np.std(gSNR_sample, axis=0), color='salmon', alpha=0.2)
+    ax[0].plot(rG*1.0e-3, np.mean(gSNR_sample, axis=0), c='red', alpha=1, label='IFT mean')
+    # ax[0].fill_between(rG*1.0e-3, np.mean(gSNR_sample, axis=0)+np.std(gSNR_sample, axis=0), np.mean(gSNR_sample, axis=0)-np.std(gSNR_sample, axis=0), color='salmon', alpha=0.2)
 
-    ax[0].set_ylabel(r'$g_{\rm SNR}\, {\rm (pc^{-2})}$')
-    ax[0].set_xlabel(r'$R\, {\rm (pc)}$')
+    ax[0].set_ylabel(r'$g_{\rm SNR}\, {\rm (pc^{-2})}$', fontsize=fs)
+    ax[0].set_xlabel(r'$R\, {\rm (kpc)}$', fontsize=fs)
+    for label_ax in (ax[0].get_xticklabels() + ax[0].get_yticklabels()):
+        label_ax.set_fontsize(fs)
 
     ax[0].legend(loc='upper right', prop={"size":fs})
-    # ax[0].set_xlim(8000.0,8200.0)
-    # ax[0].set_ylim(0.0,9.0e-9)
+    ax[0].set_xlim(0,15)
+    # ax[0].set_ylim(0.0,8.0e-9)
     # ax[0].set_yscale('log')
 
     # Plot power spectra
@@ -188,16 +192,18 @@ def plot_gSNR(rG, gSNR_truth, gSNR_sample, dorm):
 
     ax[1].set_xscale('log')
     ax[1].set_yscale('log')
+    for label_ax in (ax[1].get_xticklabels() + ax[1].get_yticklabels()):
+        label_ax.set_fontsize(fs)
 
     fig.tight_layout()
-    fig.savefig("Results_nifty/results_gSNR_%s.png" % dorm, dpi=400)
+    fig.savefig("Results_nifty_new/results_gSNR_%s_s%d_i%d.png" % (dorm, n_samples, n_vi_iterations), dpi=400)
 
-dorm = 'mock_flex10'
-n_samples = 12
-n_vi_iterations = 3
+dorm = 'dtM2_5std_samp1'
+n_samples = 20
+n_vi_iterations = 5
 
 # Load the .npz file
-data = np.load('Results_nifty/gSNR_s%d_b_10_i%d_%s.npz' % (n_samples, n_vi_iterations, dorm))
+data = np.load('Results_nifty_new/gSNR_s%d_b_5_i%d_%s.npz' % (n_samples, n_vi_iterations, dorm))
 
 # Access arrays by their names
 rG = data['rG']
@@ -209,7 +215,7 @@ gamma_sample = data['gamma']
 gamma_truth =data['gamma_truth']
 
 n_samples, _ = gSNR_sample.shape 
-print(n_samples)
+print('n_samples=', n_samples)
 
 fs=22
 
@@ -259,8 +265,8 @@ for i in range(n_samples):
     jE_sample, rg, zg=jCR.func_jCR_gSNR((rG,gSNR_sample[i]),pars_prop,zeta_n,dXSdEg_Geant4,ngas_mean,drs,points_intr,E)
     jE_samples[i,:,:,:]+=jE_sample
 
-pCR.plot_jEp_GAL(jE_mean,rg,zg,'Results_nifty/%s' % dorm)
-pCR.plot_jEp_rG(jE_truth,jE_mean,jE_samples,rg,'Results_nifty/%s' % dorm)
+pCR.plot_jEp_GAL(jE_mean,rg,zg,'Results_nifty_new/%s_s%d_i%d' % (dorm, n_samples, n_vi_iterations))
+pCR.plot_jEp_rG(jE_truth,jE_mean,jE_samples,rg,'Results_nifty_new/%s_s%d_i%d' % (dorm, n_samples, n_vi_iterations))
 
 hdul=fits.open('NPS.fits')
 print(hdul.info())
@@ -283,7 +289,7 @@ projview(
     sub=111
 )
 
-plt.savefig('Results_nifty/NPS.png', dpi=300)
+plt.savefig('Results_nifty_new/NPS.png', dpi=300)
 plt.close()
 
 print('Runtime: ',time.time()-start_time,'s')
